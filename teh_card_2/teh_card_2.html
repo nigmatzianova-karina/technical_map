@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор технологических карт ТОиР</title>
+    <style>
+        :root {
+            --primary: #2F5496;
+            --primary-light: #4A7BD1;
+            --bg: #F0F2F5;
+            --card: #FFFFFF;
+            --text: #1A1A2E;
+            --text-light: #6B7280;
+            --border: #D1D5DB;
+            --success: #10B981;
+            --ai-bg: #F0F7FF;
+            --user-bg: #E8F5E9;
+            --chat-width: 420px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .main-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .settings-btn {
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            font-size: 20px;
+        }
+
+        .settings-btn:hover { background: rgba(255,255,255,0.3); }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .form-section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .form-section h2 {
+            font-size: 16px;
+            margin-bottom: 16px;
+            color: var(--primary);
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 8px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-light);
+            margin-bottom: 6px;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(47,84,150,0.1);
+        }
+
+        .file-upload {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .file-upload:hover { border-color: var(--primary); background: var(--ai-bg); }
+        .file-upload.has-file { border-color: var(--success); background: #F0FFF4; }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .file-upload-icon { font-size: 32px; margin-bottom: 8px; }
+        .file-upload-text { font-size: 14px; color: var(--text-light); }
+        .file-upload-name { font-size: 13px; color: var(--success); font-weight: 600; margin-top: 4px; }
+
+        .send-section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .send-section textarea {
+            flex: 1;
+            padding: 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            font-family: inherit;
+        }
+
+        .send-section textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .send-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        .send-btn:hover { background: var(--primary-light); }
+        .send-btn:disabled { background: var(--border); cursor: not-allowed; }
+
+        .results-section {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            display: none;
+        }
+
+        .results-section.visible { display: block; }
+
+        .results-section h2 {
+            font-size: 16px;
+            color: var(--primary);
+            margin-bottom: 12px;
+        }
+
+        .ai-text-result {
+            background: var(--ai-bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            border-left: 4px solid var(--primary);
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 16px;
+            transition: background 0.2s;
+        }
+
+        .download-btn:hover { background: #059669; }
+
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            min-width: 1200px;
+        }
+
+        .result-table th {
+            background: var(--primary);
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            white-space: nowrap;
+        }
+
+        .result-table td {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        .result-table tr:nth-child(even) { background: #F9FAFB; }
+        .result-table tr:hover { background: #EEF2FF; }
+
+        .chat-panel {
+            width: var(--chat-width);
+            background: var(--card);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.05);
+        }
+
+        .chat-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 90%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: var(--user-bg);
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai {
+            align-self: flex-start;
+            background: var(--ai-bg);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message .label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+
+        .chat-input {
+            padding: 12px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .chat-input input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .chat-input button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .chat-input button:disabled { background: var(--border); cursor: not-allowed; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: var(--card);
+            border-radius: 16px;
+            width: 560px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalIn 0.2s ease-out;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h2 { font-size: 18px; color: var(--primary); }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-light);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover { background: var(--bg); }
+
+        .modal-body { padding: 24px; }
+
+        .modal-body .form-group { margin-bottom: 20px; }
+
+        .modal-body textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            resize: vertical;
+            line-height: 1.5;
+        }
+
+        .modal-body textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-footer button {
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-cancel { background: var(--bg); color: var(--text); }
+        .btn-save { background: var(--primary); color: white; }
+        .btn-save:hover { background: var(--primary-light); }
+
+        .loading { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .status-msg { font-size: 12px; color: var(--text-light); margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="main-panel">
+    <div class="header">
+        <h1>📋 Генератор технологических карт ТОиР</h1>
+        <button class="settings-btn" onclick="openSettings()" title="Настройки">⚙️</button>
+    </div>
+
+    <div class="content">
+        <div class="form-section">
+            <h2>Параметры оборудования</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Название модели</label>
+                    <input type="text" id="modelName" placeholder="БелАЗ 7547">
+                </div>
+                <div class="form-group">
+                    <label>Класс</label>
+                    <input type="text" id="equipmentClass" placeholder="Самосвалы">
+                </div>
+                <div class="form-group">
+                    <label>Подкласс</label>
+                    <input type="text" id="subclass" placeholder="Карьерные">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Технический паспорт</label>
+                <div class="file-upload" id="fileDropZone">
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.csv,.doc">
+                    <div class="file-upload-icon">📄</div>
+                    <div class="file-upload-text">Перетащите файл или нажмите для выбора</div>
+                    <div class="file-upload-name" id="fileName"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="send-section">
+            <textarea id="mainMessage" placeholder="Введите запрос для ИИ или нажмите 'Отправить' для генерации ТК..." rows="2"></textarea>
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                <span id="sendBtnText">Отправить</span>
+            </button>
+            
+        </div>
+
+                <div style="font-size: 12px; color: var(--text-light); margin-top: 8px; padding: 8px 12px; background: var(--ai-bg); border-radius: 6px;">
+            💡 <strong>Подсказка:</strong> Если файл не загружен — ИИ заполнит таблицу по общим знаниям. 
+            Если файл есть — будет использован только он.
+        </div>
+
+        <div class="results-section" id="resultsSection">
+            <h2>📊 Результат генерации</h2>
+            <div class="ai-text-result" id="aiTextResult"></div>
+            <button class="download-btn" id="downloadBtn" onclick="downloadXlsx()">
+                📥 Скачать XLSX
+            </button>
+            <div class="table-wrapper">
+                <table class="result-table" id="resultTable">
+                    <thead id="resultTableHead"></thead>
+                    <tbody id="resultTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="chat-panel">
+    <div class="chat-header">💬 Чат с ИИ</div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="message ai">
+            <div class="label">ИИ-ассистент</div>
+            Добро пожаловать! Заполните параметры оборудования, загрузите тех. паспорт и отправьте запрос для генерации технологической карты.
+        </div>
+    </div>
+    <div class="chat-input">
+        <input type="text" id="chatInput" placeholder="Введите сообщение..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button id="chatSendBtn" onclick="sendChat()">➤</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>⚙️ Настройки ИИ</h2>
+            <button class="modal-close" onclick="closeSettings()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Макс. токенов ответа</label>
+                <input type="number" id="settingsMaxTokens" min="500" max="16000" step="100" value="3000">
+                <small style="color: var(--text-light); display: block; margin-top: 4px;">
+                    Меньше = дешевле и быстрее. Для ТК хватит 2000-4000.
+                </small>
+            </div>
+            <div class="form-group">
+                <label>Провайдер</label>
+                <select id="settingsProvider">
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="openai">OpenAI</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>API ключ</label>
+                <input type="password" id="settingsApiKey" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+                <label>Модель ИИ</label>
+                <select id="settingsModel">
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Мастер промпт</label>
+                <textarea id="settingsMasterPrompt"></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeSettings()">Отмена</button>
+            <button class="btn-save" onclick="saveSettings()">💾 Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedFile = null;
+    let currentXlsxData = null;
+    let currentXlsxName = '';
+    let chatHistory = [];
+    let tableHeaders = [];
+
+    const CSV_HEADERS = [
+        "Класс","Подкласс","Нормализованный код модели",
+        "Элемент","Подэлемент","Наименование операции",
+        "Краткое содержание работ","Вид ТОиР","Периодичность",
+        "Норма времени, часов","Количество исполнителей",
+        "Профессия/Квалификация","Трудоёмкость, человеко/часов",
+        "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
+        "Наименование инструменты","Средства индивидуальной защиты",
+        "Требования по безопасности"
+    ];
+
+    const TABLE_HEADERS_DISPLAY = [
+        "Элемент","Подэлемент","Наименование операции",
+        "Краткое содержание работ","Вид ТОиР","Периодичность",
+        "Норма времени, часов","Количество исполнителей",
+        "Профессия/Квалификация","Трудоёмкость, человеко/часов",
+        "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
+        "Наименование инструменты","Средства индивидуальной защиты",
+        "Требования по безопасности"
+    ];
+
+    const AI_MODELS = {
+        openrouter: [
+            { value: "openai/gpt-4o", label: "GPT-4o (OpenAI)" },
+            { value: "openai/gpt-4o-mini", label: "GPT-4o Mini" },
+            { value: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+            { value: "anthropic/claude-3-haiku", label: "Claude 3 Haiku" },
+            { value: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B Instruct" },
+            { value: "google/gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
+            { value: "mistralai/mistral-large-2411", label: "Mistral Large 2" }
+        ],
+        openai: [
+            { value: "gpt-4o", label: "GPT-4o" },
+            { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+            { value: "o1", label: "o1" },
+            { value: "o3-mini", label: "o3-mini" }
+        ]
+    };
+
+    function updateModelDropdown() {
+        const provider = document.getElementById('settingsProvider').value;
+        const modelSelect = document.getElementById('settingsModel');
+        const models = AI_MODELS[provider] || AI_MODELS.openrouter;
+        const currentVal = modelSelect.value;
+
+        modelSelect.innerHTML = '';
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.value;
+            opt.textContent = m.label;
+            modelSelect.appendChild(opt);
+        });
+
+        const exists = models.some(m => m.value === currentVal);
+        if (exists) modelSelect.value = currentVal;
+    }
+
+    document.getElementById('settingsProvider').addEventListener('change', updateModelDropdown);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSettings();
+        initFileUpload();
+    });
+
+    function initFileUpload() {
+        const input = document.getElementById('fileInput');
+        const dropZone = document.getElementById('fileDropZone');
+
+        input.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                document.getElementById('fileName').textContent = selectedFile.name;
+                dropZone.classList.add('has-file');
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            if (e.dataTransfer.files.length > 0) {
+                selectedFile = e.dataTransfer.files[0];
+                document.getElementById('fileName').textContent = selectedFile.name;
+                dropZone.classList.add('has-file');
+            }
+        });
+    }
+
+    async function loadSettings() {
+        try {
+            const res = await fetch('/api/settings');
+            const s = await res.json();
+            document.getElementById('settingsProvider').value = s.provider || 'openrouter';
+            document.getElementById('settingsApiKey').value = s.api_key || '';
+            document.getElementById('settingsMasterPrompt').value = s.master_prompt || '';
+            
+            updateModelDropdown();
+            document.getElementById('settingsModel').value = s.model || AI_MODELS.openrouter[0].value;
+        } catch(e) { 
+            console.error('Ошибка загрузки настроек:', e); 
+        }
+    }
+
+    function openSettings() {
+        document.getElementById('settingsModal').classList.add('active');
+    }
+
+    function closeSettings() {
+        document.getElementById('settingsModal').classList.remove('active');
+    }
+
+    async function saveSettings() {
+        const settings = {
+            provider: document.getElementById('settingsProvider').value,
+            api_key: document.getElementById('settingsApiKey').value,
+            model: document.getElementById('settingsModel').value,
+            master_prompt: document.getElementById('settingsMasterPrompt').value,
+            max_tokens: parseInt(document.getElementById('settingsMaxTokens').value) || 3000
+        };
+        try {
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            closeSettings();
+        } catch(e) { alert('Ошибка сохранения настроек'); }
+    }
+
+    function getFormData() {
+        return {
+            model_name: document.getElementById('modelName').value,
+            equipment_class: document.getElementById('equipmentClass').value,
+            subclass: document.getElementById('subclass').value
+        };
+    }
+
+    async function sendMessage() {
+        const btn = document.getElementById('sendBtn');
+        const btnText = document.getElementById('sendBtnText');
+        const msgInput = document.getElementById('mainMessage');
+        const message = msgInput.value.trim() || 'Сгенерируй технологическую карту по загруженному документу';
+
+        const data = getFormData();
+        if (!data.model_name) { alert('Введите название модели'); return; }
+
+        btn.disabled = true;
+        btnText.innerHTML = '<span class="loading"></span>';
+
+        addChatMessage('user', message);
+
+        try {
+            const formData = new FormData();
+            formData.append('message', message);
+            formData.append('model_name', data.model_name);
+            formData.append('equipment_class', data.equipment_class);
+            formData.append('subclass', data.subclass);
+            if (selectedFile) formData.append('file', selectedFile);
+
+            const res = await fetch('/api/chat', { method: 'POST', body: formData });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ detail: 'Ошибка сервера' }));
+                throw new Error(err.detail || 'Ошибка запроса');
+            }
+
+            const result = await res.json();
+
+            addChatMessage('ai', result.text || 'Данные получены');
+
+            displayResults(result);
+
+            msgInput.value = '';
+        } catch(e) {
+            addChatMessage('ai', `❌ Ошибка: ${e.message}`);
+        } finally {
+            btn.disabled = false;
+            btnText.textContent = 'Отправить';
+        }
+    }
+
+    async function sendChat() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (!message) return;
+
+        const btn = document.getElementById('chatSendBtn');
+        btn.disabled = true;
+
+        const data = getFormData();
+        addChatMessage('user', message);
+
+        try {
+            const formData = new FormData();
+            formData.append('message', message);
+            formData.append('model_name', data.model_name || 'не указана');
+            formData.append('equipment_class', data.equipment_class || '');
+            formData.append('subclass', data.subclass || '');
+            if (selectedFile) formData.append('file', selectedFile);
+
+            const res = await fetch('/api/chat', { method: 'POST', body: formData });
+            const result = await res.json();
+
+            addChatMessage('ai', result.text || 'Данные получены');
+
+            if (result.table_rows && result.table_rows.length > 0) {
+                displayResults(result);
+            }
+        } catch(e) {
+            addChatMessage('ai', `❌ Ошибка: ${e.message}`);
+        } finally {
+            btn.disabled = false;
+            input.value = '';
+        }
+    }
+
+    function addChatMessage(role, text) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = `message ${role}`;
+        div.innerHTML = `<div class="label">${role === 'user' ? 'Вы' : 'ИИ-ассистент'}</div><div>${escapeHtml(text)}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    function displayResults(result) {
+        const section = document.getElementById('resultsSection');
+        section.classList.add('visible');
+
+        document.getElementById('aiTextResult').textContent = result.text || '';
+
+        if (result.xlsx_file) {
+            currentXlsxData = result.xlsx_file;
+            currentXlsxName = result.xlsx_filename || 'ТК.xlsx';
+            document.getElementById('downloadBtn').style.display = 'inline-flex';
+        }
+
+        const thead = document.getElementById('resultTableHead');
+        const tbody = document.getElementById('resultTableBody');
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
+
+        const trHead = document.createElement('tr');
+        TABLE_HEADERS_DISPLAY.forEach(h => {
+            const th = document.createElement('th');
+            th.textContent = h;
+            trHead.appendChild(th);
+        });
+        thead.appendChild(trHead);
+
+        if (result.table_rows) {
+            result.table_rows.forEach(row => {
+                const tr = document.createElement('tr');
+                row.forEach(cell => {
+                    const td = document.createElement('td');
+                    td.textContent = cell || '';
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        section.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function downloadXlsx() {
+        if (!currentXlsxData) return;
+        const link = document.createElement('a');
+        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${currentXlsxData}`;
+        link.download = currentXlsxName;
+        link.click();
+    }
+
+    document.getElementById('settingsModal').addEventListener('click', (e) => {
+        if (e.target.id === 'settingsModal') closeSettings();
+    });
+</script>
+
+</body>
+</html>

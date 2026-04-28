@@ -1,0 +1,44 @@
+# ОС и системы
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Настройки IDE (рекомендуется игнорировать)
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Зависимости
+node_modules/
+vendor/
+/jspm_packages
+
+# Сборка и логи
+build/
+dist/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Переменные окружения и секреты
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Базы данных
+*.sqlite
+*.db
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
