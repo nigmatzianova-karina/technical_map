@@ -76,7 +76,6 @@ CSV_HEADERS = [
 
 
 def load_settings():
-    """Загрузка настроек с приоритетом .env над settings.json"""
     settings = {
         "provider": "openrouter",
         "api_key": os.getenv("OPENROUTER_API_KEY", ""),
@@ -125,22 +124,6 @@ def extract_text_from_file(file_path: str) -> str:
     except Exception as e:
         text = f"[Ошибка чтения файла: {e}]"
     return text
-
-
-def parse_ai_table_response(text_response: str) -> list:
-    rows = []
-    lines = text_response.strip().split("\n")
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) >= 4:
-            # Дополняем до 19 колонок
-            while len(parts) < len(CSV_HEADERS):
-                parts.append("")
-            rows.append(parts[:len(CSV_HEADERS)])
-    return rows
 
 
 def create_xlsx(headers: list, rows: list, class_val: str, subclass_val: str, model_code: str) -> bytes:
@@ -198,45 +181,12 @@ async def call_ai(messages: list, settings: dict):
     model = settings.get("model", "openai/gpt-4o")
     max_tokens = settings.get("max_tokens", 3000)
 
-    if not api_key and provider != "yandex":
+    if not api_key:
         raise HTTPException(status_code=400, detail="API ключ не установлен в настройках или .env")
 
     timeout = httpx.Timeout(timeout=REQUEST_TIMEOUT, connect=10.0)
 
-    if provider == "yandex":
-        iam_token = os.getenv("YANDEX_IAM_TOKEN", "")
-        folder_id = os.getenv("YANDEX_FOLDER_ID", "")
-        if not iam_token or not folder_id:
-            raise HTTPException(status_code=400, detail="Yandex IAM токен или Folder ID не настроены в .env")
-
-        yandex_messages = []
-        for m in messages:
-            yandex_messages.append({"role": m["role"], "text": m.get("content", "")})
-
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(
-                "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {iam_token}",
-                    "x-folder-id": folder_id
-                },
-                json={
-                    "modelUri": f"gpt://{folder_id}/yandexgpt/latest",
-                    "completionOptions": {
-                        "stream": False,
-                        "temperature": 0.3,
-                        "maxTokens": max_tokens
-                    },
-                    "messages": yandex_messages
-                }
-            )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail=f"Yandex GPT error: {resp.text}")
-            data = resp.json()
-            return data["result"]["alternatives"][0]["message"]["text"]
-
-    elif provider == "openrouter":
+    if provider == "openrouter":
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -257,16 +207,6 @@ async def call_ai(messages: list, settings: dict):
                 raise HTTPException(status_code=resp.status_code, detail=f"OpenRouter error: {resp.text}")
             data = resp.json()
             return data["choices"][0]["message"]["content"]
-
-    elif provider == "openai":
-        client = AsyncOpenAI(api_key=api_key, timeout=timeout)
-        response = await client.chat.completions.create(
-            model=model or "gpt-4o",
-            messages=messages,
-            temperature=0.3,
-            max_tokens=max_tokens
-        )
-        return response.choices[0].message.content
 
     elif provider == "huggingface":
         hf_token = os.getenv("HF_API_TOKEN", "")
@@ -454,7 +394,6 @@ async def chat_endpoint(
 
 @app.get("/api/table_template")
 async def get_table_template():
-    """Возвращает заголовки таблицы для фронтенда (единый источник)"""
     return {
         "headers": CSV_HEADERS,
         "display_headers": CSV_HEADERS[3:]

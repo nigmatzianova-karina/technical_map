@@ -518,8 +518,8 @@
 <body>
 <div class="main-panel">
     <div class="header">
-        <h1>📋 Генератор технологических карт ТОиР</h1>
-        <button class="settings-btn" onclick="openSettings()" title="Настройки">⚙️</button>
+        <h1>Генератор технологических карт ТОиР</h1>
+        <button class="settings-btn" onclick="openSettings()" title="Настройки">⚙</button>
     </div>
 
     <div class="content" style="position: relative;">
@@ -544,7 +544,7 @@
                 <label>Технический паспорт</label>
                 <div class="file-upload" id="fileDropZone">
                     <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.csv,.doc">
-                    <div class="file-upload-icon">📄</div>
+                    <div class="file-upload-icon">📁</div>
                     <div class="file-upload-text">Перетащите файл или нажмите для выбора</div>
                     <div class="file-upload-name" id="fileName"></div>
                 </div>
@@ -574,10 +574,10 @@
         </div>
 
         <div class="results-section" id="resultsSection">
-            <h2>📊 Результат генерации</h2>
+            <h2>Результат генерации</h2>
             <div class="ai-text-result" id="aiTextResult"></div>
             <button class="download-btn" id="downloadBtn" onclick="downloadXlsx()">
-                📥 Скачать XLSX
+                Скачать XLSX
             </button>
             <div class="table-wrapper">
                 <table class="result-table" id="resultTable">
@@ -590,7 +590,7 @@
 </div>
 
 <div class="chat-panel">
-    <div class="chat-header">💬 Чат с ИИ</div>
+        <div class="chat-header">Чат с ИИ</div>
     <div class="chat-messages" id="chatMessages">
         <div class="message ai">
             <div class="label">ИИ-ассистент</div>
@@ -625,8 +625,6 @@
                 <select id="settingsProvider">
                     <option value="openrouter">OpenRouter</option>
                     <option value="openai">OpenAI</option>
-                    <option value="yandex">YandexGPT</option>
-                    <option value="huggingface">HuggingFace (Qwen)</option>
                 </select>
             </div>
             <div class="form-group">
@@ -679,9 +677,14 @@
         "Требования по безопасности"
     ];
 
+    const FREE_FALLBACK_MODELS = [
+        "openrouter/free",
+        "inclusionai/ling-2.6-1t:free",
+        "openai/gpt-oss-120b:free",
+    ];
+
     const AI_MODELS = {
         openrouter: [
-            // 💰 Платные (требуют баланса)
             { value: "openai/gpt-4o-2024-08-06", label: "GPT-4o (OpenAI)" },
             { value: "openai/gpt-4o-mini-2024-07-18", label: "GPT-4o Mini" },
             { value: "anthropic/claude-3-5-sonnet-20240620", label: "Claude 3.5 Sonnet" },
@@ -689,13 +692,11 @@
             { value: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B" },
             { value: "google/gemini-2.0-flash-exp", label: "Gemini 2.0 Flash" },
             { value: "mistralai/mistral-large-2411", label: "Mistral Large 2" },
-
-            // 🆓 БЕСПЛАТНЫЕ МОДЕЛИ (рекомендую для старта)
-            { value: "qwen/qwen3-next-80b-a3b-instruct:free", label: "✨ Qwen 3 80B (Free)" },
-            { value: "meta-llama/llama-3.1-8b-instruct:free", label: "✨ Llama 3.1 8B (Free)" },
-            { value: "google/gemma-2-9b-it:free", label: "✨ Gemma 2 9B (Free)" },
-            { value: "mistralai/mistral-7b-instruct:free", label: "✨ Mistral 7B (Free)" },
-            { value: "nousresearch/hermes-2-pro:free", label: "✨ Hermes 2 Pro (Free)" }
+                
+            { value: "z-ai/glm-4.5-air:free", label: "GLM-4.5 Air (Free) • Z.AI" },
+            { value: "inclusionai/ling-2.6-1t:free", label: "Ling-2.6-1T (Free) • 1M ctx" },
+            { value: "openai/gpt-oss-120b:free", label: "GPT-OSS 120B (Free)" },
+            { value: "openrouter/free", label: "OpenRouter Free (Auto-select)" }
         ],
         openai: [
             { value: "gpt-4o", label: "GPT-4o" },
@@ -703,13 +704,6 @@
             { value: "o1", label: "o1" },
             { value: "o3-mini", label: "o3-mini" }
         ],
-        yandex: [
-            { value: "yandexgpt", label: "YandexGPT Latest" }
-        ],
-        huggingface: [
-            { value: "Qwen/Qwen2.5-72B-Instruct", label: "Qwen 2.5 72B Instruct" },
-            { value: "Qwen/Qwen2.5-32B-Instruct", label: "Qwen 2.5 32B Instruct" }
-        ]
     };
 
     function updateModelDropdown() {
@@ -739,7 +733,6 @@
             const res = await fetch('/api/table_template');
             const tpl = await res.json();
             if (tpl.display_headers) {
-                // Обновляем глобальную переменную
                 window.TABLE_HEADERS_DISPLAY = tpl.display_headers;
             }
         } catch(e) {
@@ -823,25 +816,68 @@
 
     function setLoadingState(isLoading) {
         isGenerating = isLoading;
-
-        // Кнопки
         document.getElementById('sendBtn').classList.toggle('loading', isLoading);
         document.getElementById('chatSendBtn').classList.toggle('loading', isLoading);
         document.getElementById('sendBtn').disabled = isLoading;
         document.getElementById('chatSendBtn').disabled = isLoading;
         document.getElementById('chatInput').disabled = isLoading;
         document.getElementById('mainMessage').disabled = isLoading;
-
-        // Оверлей
         document.getElementById('resultsLoader').classList.toggle('active', isLoading);
-
-        // Поле ввода чата
         const chatInput = document.getElementById('chatInput');
         if (isLoading) {
             chatInput.placeholder = 'Ожидание ответа ИИ...';
         } else {
             chatInput.placeholder = 'Введите сообщение...';
         }
+    }
+
+    async function callWithFallback(formData, onModelChange = null) {
+        const modelsToTry = FREE_FALLBACK_MODELS.slice();
+        const tried = [];
+
+        for (const model of modelsToTry) {
+            tried.push(model);
+            if (onModelChange) onModelChange(model, tried.length);
+
+            formData.set('model', model);
+
+            try {
+                const res = await fetch('/api/chat', { method: 'POST', body: formData });
+                
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    const errMsg = errData.detail || JSON.stringify(errData.error || {});
+                    
+                    const isProviderError = 
+                        errData.error?.code === 403 || 
+                        errData.error?.code === 503 ||
+                        errMsg.toLowerCase().includes('at capacity') ||
+                        errMsg.toLowerCase().includes('provider returned error') ||
+                        errMsg.toLowerCase().includes('temporarily unavailable');
+                    
+                    if (isProviderError) {
+                        console.warn(`⚠️ Модель ${model} недоступна: ${errMsg}`);
+                        continue;
+                    }
+                    throw new Error(errMsg || `HTTP ${res.status}`);
+                }
+
+                return await res.json();
+
+            } catch (error) {
+                console.warn(`❌ Ошибка с ${model}:`, error.message);
+                
+                if (error.message.toLowerCase().includes('capacity') ||
+                    error.message.toLowerCase().includes('provider') ||
+                    error.message.includes('403') ||
+                    error.message.includes('503')) {
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        throw new Error(`Все модели недоступны. Попробовано: ${tried.join(', ')}`);
     }
 
     async function sendMessage() {
@@ -865,25 +901,21 @@
             formData.append('model_name', data.model_name);
             formData.append('equipment_class', data.equipment_class);
             formData.append('subclass', data.subclass);
-
-            formData.append('model', currentModel);
             formData.append('provider', currentProvider);
-
             if (selectedFile) formData.append('file', selectedFile);
 
-            const res = await fetch('/api/chat', { method: 'POST', body: formData });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({ detail: 'Ошибка сервера' }));
-                throw new Error(err.detail || 'Ошибка запроса');
-            }
+            const result = await callWithFallback(formData, (tryingModel, attempt) => {
+                if (attempt > 1) {
+                    addChatMessage('ai', `Пробуем модель #${attempt}: ${tryingModel}...`);
+                }
+            });
 
-            const result = await res.json();
             addChatMessage('ai', result.text || 'Данные получены');
             displayResults(result);
             msgInput.value = '';
 
         } catch(e) {
-            addChatMessage('ai', `❌ Ошибка: ${e.message}`);
+            addChatMessage('ai', `Ошибка: ${e.message}`);
         } finally {
             setLoadingState(false);
         }
@@ -909,21 +941,21 @@
             formData.append('model_name', data.model_name || 'не указана');
             formData.append('equipment_class', data.equipment_class || '');
             formData.append('subclass', data.subclass || '');
-
-            formData.append('model', currentModel);
             formData.append('provider', currentProvider);
-
             if (selectedFile) formData.append('file', selectedFile);
 
-            const res = await fetch('/api/chat', { method: 'POST', body: formData });
-            const result = await res.json();
+            const result = await callWithFallback(formData, (tryingModel, attempt) => {
+                if (attempt > 1) {
+                    addChatMessage('ai', `Модель #${attempt}: ${tryingModel}...`);
+                }
+            });
 
             addChatMessage('ai', result.text || 'Данные получены');
             if (result.table_rows && result.table_rows.length > 0) {
                 displayResults(result);
             }
         } catch(e) {
-            addChatMessage('ai', `❌ Ошибка: ${e.message}`);
+            addChatMessage('ai', `Ошибка: ${e.message}`);
         } finally {
             setLoadingState(false);
             input.value = '';
@@ -948,8 +980,6 @@
     function displayResults(result) {
         const section = document.getElementById('resultsSection');
         section.classList.add('visible');
-
-        // Показываем результаты ПОСЛЕ скрытия лоадера
         document.getElementById('aiTextResult').textContent = result.text || '';
 
         if (result.xlsx_file) {
@@ -963,9 +993,7 @@
         thead.innerHTML = '';
         tbody.innerHTML = '';
 
-        // Используем заголовки из API или дефолт
         const headers = window.TABLE_HEADERS_DISPLAY || TABLE_HEADERS_DISPLAY;
-
         const trHead = document.createElement('tr');
         headers.forEach(h => {
             const th = document.createElement('th');
@@ -977,7 +1005,6 @@
         if (result.table_rows) {
             result.table_rows.forEach(row => {
                 const tr = document.createElement('tr');
-                // Обрезаем или дополняем строку до количества заголовков
                 const cells = headers.map((_, i) => row[i] || '');
                 cells.forEach(cell => {
                     const td = document.createElement('td');
