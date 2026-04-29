@@ -1,15 +1,13 @@
 import os
 import json
-import csv
 import io
 import re
 import tempfile
 from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from openai import OpenAI, AsyncOpenAI
+from fastapi.responses import HTMLResponse
+from openai import AsyncOpenAI
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
@@ -17,6 +15,15 @@ import httpx
 import PyPDF2
 from docx import Document
 import base64
+from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+load_dotenv()
+
+APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
+APP_PORT = int(os.getenv("APP_PORT", "8000"))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "120"))
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 
 app = FastAPI(title="TK AI Generator")
 
@@ -24,7 +31,7 @@ SETTINGS_FILE = Path("settings.json")
 DEFAULT_SETTINGS = {
     "provider": "openrouter",
     "api_key": "",
-    "model": "anthropic/claude-3.5-sonnet", 
+    "model": "anthropic/claude-3.5-sonnet",
     "max_tokens": 3000,
     "master_prompt": """Ты инженер, специалист по формированию технологических карт и работ по ТОиР оборудования.
 
@@ -69,10 +76,27 @@ CSV_HEADERS = [
 
 
 def load_settings():
+    """Загрузка настроек с приоритетом .env над settings.json"""
+    settings = {
+        "provider": "openrouter",
+        "api_key": os.getenv("OPENROUTER_API_KEY", ""),
+        "model": "anthropic/claude-3.5-sonnet",
+        "max_tokens": int(os.getenv("DEFAULT_MAX_TOKENS", "3000")),
+        "master_prompt": DEFAULT_SETTINGS["master_prompt"]
+    }
+
     if SETTINGS_FILE.exists():
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return DEFAULT_SETTINGS.copy()
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                file_settings = json.load(f)
+                if not os.getenv("OPENROUTER_API_KEY"):
+                    settings["api_key"] = file_settings.get("api_key", "")
+                settings.update({k: v for k, v in file_settings.items()
+                                 if k not in ("api_key", "provider", "model")})
+        except Exception as e:
+            print(f"⚠️ Ошибка чтения settings.json: {e}")
+
+    return settings
 
 
 def save_settings(settings):
@@ -165,26 +189,55 @@ def create_xlsx(headers: list, rows: list, class_val: str, subclass_val: str, mo
     return buf.read()
 
 
+@retry(stop=stop_after_attempt(MAX_RETRIES),
+       wait=wait_exponential(multiplier=1, min=2, max=10),
+       retry=retry_if_exception_type((httpx.RequestError, httpx.TimeoutException)))
 async def call_ai(messages: list, settings: dict):
     provider = settings.get("provider", "openrouter")
     api_key = settings.get("api_key", "")
     model = settings.get("model", "openai/gpt-4o")
+    max_tokens = settings.get("max_tokens", 3000)
 
-    if not api_key:
-        raise HTTPException(status_code=400, detail="API ключ не установлен в настройках")
+    if not api_key and provider != "yandex":
+        raise HTTPException(status_code=400, detail="API ключ не установлен в настройках или .env")
 
-    if provider == "openai":
-        client = AsyncOpenAI(api_key=api_key)
-        response = await client.chat.completions.create(
-            model=model or "gpt-4o",
-            messages=messages,
-            temperature=0.3,
-            max_tokens=3000
-        )
-        return response.choices[0].message.content
+    timeout = httpx.Timeout(timeout=REQUEST_TIMEOUT, connect=10.0)
+
+    if provider == "yandex":
+        iam_token = os.getenv("YANDEX_IAM_TOKEN", "")
+        folder_id = os.getenv("YANDEX_FOLDER_ID", "")
+        if not iam_token or not folder_id:
+            raise HTTPException(status_code=400, detail="Yandex IAM токен или Folder ID не настроены в .env")
+
+        yandex_messages = []
+        for m in messages:
+            yandex_messages.append({"role": m["role"], "text": m.get("content", "")})
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {iam_token}",
+                    "x-folder-id": folder_id
+                },
+                json={
+                    "modelUri": f"gpt://{folder_id}/yandexgpt/latest",
+                    "completionOptions": {
+                        "stream": False,
+                        "temperature": 0.3,
+                        "maxTokens": max_tokens
+                    },
+                    "messages": yandex_messages
+                }
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"Yandex GPT error: {resp.text}")
+            data = resp.json()
+            return data["result"]["alternatives"][0]["message"]["text"]
 
     elif provider == "openrouter":
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -194,16 +247,52 @@ async def call_ai(messages: list, settings: dict):
                     "X-Title": "TK AI Generator"
                 },
                 json={
-                    "model": model or "openai/gpt-4o",
+                    "model": model,
                     "messages": messages,
-                    "temperature": 0.3,
-                    "max_tokens": settings.get("max_tokens", 3000)
+                    "temperature": float(os.getenv("DEFAULT_TEMPERATURE", "0.3")),
+                    "max_tokens": max_tokens
                 }
             )
             if resp.status_code != 200:
                 raise HTTPException(status_code=resp.status_code, detail=f"OpenRouter error: {resp.text}")
             data = resp.json()
             return data["choices"][0]["message"]["content"]
+
+    elif provider == "openai":
+        client = AsyncOpenAI(api_key=api_key, timeout=timeout)
+        response = await client.chat.completions.create(
+            model=model or "gpt-4o",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=max_tokens
+        )
+        return response.choices[0].message.content
+
+    elif provider == "huggingface":
+        hf_token = os.getenv("HF_API_TOKEN", "")
+        if not hf_token:
+            raise HTTPException(status_code=400, detail="HF API token не настроен в .env")
+
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                f"https://api-inference.huggingface.co/models/{model}",
+                headers={
+                    "Authorization": f"Bearer {hf_token}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "inputs": "\n".join([f"{m['role']}: {m['content']}" for m in messages]),
+                    "parameters": {
+                        "max_new_tokens": max_tokens,
+                        "temperature": 0.3,
+                        "return_full_text": False
+                    }
+                }
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"HF error: {resp.text}")
+            data = resp.json()
+            return data[0]["generated_text"] if isinstance(data, list) else str(data)
 
     else:
         raise HTTPException(status_code=400, detail=f"Неизвестный провайдер: {provider}")
@@ -237,9 +326,17 @@ async def chat_endpoint(
     model_name: str = Form(""),
     equipment_class: str = Form(""),
     subclass: str = Form(""),
-    file: Optional[UploadFile] = File(None)
+    file: Optional[UploadFile] = File(None),
+    model: str = Form(None),
+    provider: str = Form(None),
 ):
     settings = load_settings()
+
+    if provider:
+        settings["provider"] = provider
+    if model:
+        settings["model"] = model
+
     file_text = ""
 
     if file and file.filename:
@@ -354,13 +451,21 @@ async def chat_endpoint(
         "xlsx_filename": f"ТК_{model_name or 'модель'}_{equipment_class}.xlsx"
     }
 
+
 @app.get("/api/table_template")
 async def get_table_template():
-    """Возвращает заголовки таблицы для фронтенда"""
-    return {"headers": CSV_HEADERS}
+    """Возвращает заголовки таблицы для фронтенда (единый источник)"""
+    return {
+        "headers": CSV_HEADERS,
+        "display_headers": CSV_HEADERS[3:]
+    }
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-    
+    uvicorn.run(
+        "main:app",
+        host=APP_HOST,
+        port=APP_PORT,
+        reload=os.getenv("RELOAD", "true").lower() == "true"
+    )
