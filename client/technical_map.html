@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор технологических карт ТОиР</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+
+<div class="main-panel">
+    <div class="header">
+        <a href="/" class="home-btn" title="На главную">🏠</a>
+        <h1>🔧 Генератор технологических карт ТОиР</h1>
+        <button class="settings-btn" onclick="TechMap.openSettings()" title="Настройки">⚙️</button>
+    </div>
+
+    <div class="content">
+        <!-- ЛЕВАЯ КОЛОНКА -->
+        <div class="main-content">
+            <div class="form-section">
+                <h2>Параметры оборудования</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Название модели *</label>
+                        <input type="text" id="modelName" placeholder="БелАЗ 7547" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Класс</label>
+                        <input type="text" id="equipmentClass" placeholder="Самосвалы">
+                    </div>
+                    <div class="form-group">
+                        <label>Подкласс</label>
+                        <input type="text" id="subclass" placeholder="Карьерные">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Технический паспорт (PDF)</label>
+                    <div class="file-upload" id="fileDropZone">
+                        <input type="file" id="fileInput" accept=".pdf">
+                        <div class="file-upload-icon">📁</div>
+                        <div class="file-upload-text">Перетащите файл или нажмите для выбора</div>
+                        <div class="file-upload-name" id="fileName"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Таблица результатов -->
+            <div class="results-section" id="resultsSection">
+                <h2>📊 Технологическая карта</h2>
+
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px;">
+                    <select id="historySelect" style="flex:1; min-width:200px;">
+                        <option value="">— Выбрать предыдущую генерацию —</option>
+                    </select>
+                    <button class="btn btn-outline" id="clearHistoryBtn" title="Очистить всю историю">🗑 Очистить</button>
+                </div>
+
+                <button class="download-btn" id="downloadBtn" style="display:none;">📥 Скачать XLSX</button>
+                <div class="table-wrapper">
+                    <table class="result-table" id="resultTable">
+                        <thead id="resultTableHead"></thead>
+                        <tbody id="resultTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ПРАВАЯ КОЛОНКА (ЧАТ) -->
+        <div class="chat-column">
+            <div class="chat-section">
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message ai">
+                        <div class="label">ИИ-ассистент</div>
+                        Введите параметры и нажмите «Отправить» или задайте вопрос.
+                    </div>
+                </div>
+                <div class="chat-input-row">
+                    <input type="text" id="chatInput" placeholder="Введите сообщение...">
+                    <button class="btn send-btn" id="sendBtn" title="Отправить">📤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно настроек -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>⚙️ Настройки ИИ</h2>
+            <button class="modal-close" onclick="TechMap.closeSettings()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Провайдер</label>
+                <select id="settingsProvider" onchange="TechMap.updateModelDropdown()">
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="openai">OpenAI</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>API ключ</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="password" id="settingsApiKey" placeholder="sk-or-..." style="flex:1;">
+                    <button class="btn btn-outline" onclick="TechMap.validateKey()">Проверить</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Модель</label>
+                <select id="settingsModel"></select>
+            </div>
+            <div class="form-group">
+                <label>Температура</label>
+                <input type="number" id="settingsTemperature" min="0" max="2" step="0.1" value="0.3">
+            </div>
+            <div class="form-group">
+                <label>Макс. токенов</label>
+                <input type="number" id="settingsMaxTokens" min="500" max="32000" step="100" value="3000">
+            </div>
+            <div class="form-group">
+                <label>Мастер-промпт</label>
+                <textarea id="settingsMasterPrompt" rows="6" placeholder="Системный промпт..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-cancel" onclick="TechMap.closeSettings()">Отмена</button>
+            <button class="btn btn-save" onclick="TechMap.saveSettings()">💾 Сохранить</button>
+        </div>
+    </div>
+</div>
+
+<div id="status-message"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+<script src="/assets/js/xlsx.full.min.js"></script>
+<script src="/assets/js/utils.js"></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/tech-map.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof TechMap !== 'undefined' && TechMap.init) {
+            TechMap.init();
+        }
+    });
+</script>
+</body>
+</html>

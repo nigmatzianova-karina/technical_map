@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Парсинг PDF / DOCX</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div class="main-panel">
+    <div class="header">
+        <a href="/" class="home-btn">🏠</a>
+        <h1>📄 Парсинг документов</h1>
+    </div>
+    <div class="content">
+        <div class="main-content">
+            <div class="form-section">
+                <h2>Загрузка файла</h2>
+                <div class="form-group">
+                    <label>Поддерживаются PDF и DOCX</label>
+                    <div class="file-upload" id="fileDropZone">
+                        <input type="file" id="fileInput" accept=".pdf,.docx">
+                        <div class="file-upload-icon">📁</div>
+                        <div class="file-upload-text">Перетащите файл или нажмите для выбора</div>
+                        <div class="file-upload-name" id="fileName"></div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
+                    <button class="btn" id="parseBtn">🔍 Распарсить</button>
+                    <span id="loadingIndicator" style="display: none; color: var(--text-light);">⏳ Обработка...</span>
+                </div>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <h2 style="margin:0;">Результат</h2>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="download-btn" id="downloadTextBtn" style="display:none;">📥 Текст (TXT)</button>
+                        <button class="download-btn" id="downloadExcelBtn" style="display:none;">📥 Таблицы (Excel)</button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center; margin: 16px 0;">
+                    <select id="historySelect" style="flex:1; min-width:200px;">
+                        <option value="">— Выбрать предыдущий результат —</option>
+                    </select>
+                    <button class="btn btn-outline" id="clearHistoryBtn">🗑 Очистить</button>
+                </div>
+                <div id="parsedContent"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="status-message"></div>
+
+<script src="/assets/js/xlsx.full.min.js"></script>
+<script src="/assets/js/utils.js"></script>
+<script src="/assets/js/pdf-parser.js"></script>
+</body>
+</html>

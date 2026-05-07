@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataProcessor System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #6e8efb;
+            --primary-light: #a777e3;
+            --bg: #0f0f1a;
+            --card: #1a1a2e;
+            --text: #e0e0e0;
+            --text-light: #888;
+            --border: #2a2a4a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --header-height: 60px;
+            --review-bg: rgba(245, 158, 11, 0.1);
+            --review-text: #f59e0b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+        .nav-links { list-style: none; padding: 20px 0; margin: 0; }
+        .nav-links li {
+            padding: 15px 25px; cursor: pointer; transition: all 0.2s;
+            border-left: 4px solid transparent; font-weight: 500; color: var(--text-light);
+        }
+        .nav-links li:hover { background-color: rgba(110, 142, 251, 0.1); padding-left: 30px; color: var(--text); }
+        .nav-links li.active {
+            background-color: rgba(110, 142, 251, 0.15);
+            border-left-color: var(--primary); color: var(--text); padding-left: 30px;
+        }
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 900; backdrop-filter: blur(2px); }
+        .overlay.active { display: block; }
+
+        .main-wrapper { display: flex; flex-direction: column; height: 100vh; }
+        .top-bar {
+            height: var(--header-height); background-color: var(--card); display: flex; align-items: center;
+            padding: 0 20px; border-bottom: 1px solid var(--border); z-index: 800; gap: 15px;
+        }
+        .home-btn {
+            width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1);
+            border: none; color: var(--text); font-size: 18px; display: flex; align-items: center;
+            justify-content: center; text-decoration: none; transition: background 0.2s;
+        }
+        .home-btn:hover { background: rgba(255,255,255,0.2); }
+        .page-title { font-size: 1.1rem; font-weight: 600; color: var(--text); flex: 1; }
+
+        .content-area { flex: 1; padding: 2rem; overflow-y: auto; box-sizing: border-box; max-width: 1600px; margin: 0 auto; width: 100%; }
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .block-container {
+            background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+            margin-bottom: 1.5rem; padding: 1.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .block-title {
+            font-size: 1.1rem; font-weight: 600; color: var(--primary); margin-bottom: 1rem;
+            padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border); padding: 2rem; text-align: center;
+            border-radius: 12px; background: rgba(0,0,0,0.15); transition: border-color 0.2s, background 0.2s;
+        }
+        .upload-area:hover { border-color: var(--primary); background: rgba(110, 142, 251, 0.05); }
+        input[type="file"] { display: none; }
+        
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px; }
+
+        .btn {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: white; padding: 10px 20px; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 14px; font-weight: 500; transition: opacity 0.2s, transform 0.2s; margin-right: 10px;
+        }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-light); }
+        .btn-outline:hover { border-color: var(--primary); color: var(--text); }
+        .btn-success { background: var(--success); }
+        .btn-warning { background: var(--warning); color: #0f0f1a; }
+        .btn-info { background: #3b82f6; }
+
+        .table-container { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--card); max-height: 65vh; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; min-width: 120px; }
+        th { background: rgba(110, 142, 251, 0.1); font-weight: 600; color: var(--primary); position: sticky; top: 0; z-index: 10; }
+        td[contenteditable="true"] { cursor: text; }
+        td[contenteditable="true"]:focus {
+            background-color: rgba(110, 142, 251, 0.1); outline: 2px solid var(--primary); outline-offset: -2px;
+        }
+        tr:hover { background-color: rgba(255,255,255,0.02); }
+        tr.needs-review-row { background-color: var(--review-bg); }
+        tr.needs-review-row:hover { background-color: rgba(245, 158, 11, 0.2); }
+        tr.needs-review-row td { color: var(--review-text); }
+
+        #status-message {
+            position: fixed; top: 20px; right: 20px; z-index: 9999;
+            min-width: 280px; max-width: 420px; padding: 14px 16px; border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4); display: none; animation: fadeInToast 0.25s ease;
+            background: var(--card); border: 1px solid var(--border); color: var(--text);
+        }
+        @keyframes fadeInToast { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .success { border-color: var(--success); color: var(--success); }
+        .error { border-color: var(--danger); color: var(--danger); }
+        .info { border-color: var(--primary); color: var(--primary); }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        @media (max-width: 768px) {
+            .content-area { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="overlay" onclick="toggleMenu()"></div>
+
+<div class="main-wrapper">
+    <header class="top-bar">
+        <a href="/" class="home-btn" title="На главную">🏠</a>
+        <div class="page-title" id="page-title">Иерархия и модели</div>
+    </header>
+
+    <main class="content-area">
+        <div id="tab-hierarchy" class="tab-content active">
+            
+            <div class="block-container">
+                <div class="block-title">1. Загрузка данных</div>
+                <div class="upload-area">
+                    <p style="margin-bottom: 15px; color: var(--text-light);">Загрузите Excel файл с данными</p>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls" />
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">Выбрать файл</button>
+                    <button class="btn btn-outline" onclick="uploadFile()">Загрузить данные</button>
+                    <span id="fileName" style="margin-left: 15px; color: var(--text-light); font-style: italic;"></span>
+                </div>
+            </div>
+
+            <div class="block-container" id="normalize-block" style="display: none;">
+                <div class="block-title">2. Нормализация</div>
+                <p style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 15px;">
+                    ℹ️ Правила нормализации (ГОСТ 8.417, ГОСТ 2.321) встроены в систему.
+                </p>
+                <div class="controls">
+                    <button class="btn btn-warning" onclick="runNormalization()">Выполнить нормализацию</button>
+                </div>
+            </div>
+
+            <div class="block-container" id="classify-block" style="display: none;">
+                <div class="block-title">3. Классификация</div>
+                <p style="font-size: 0.9rem; color: var(--text-light); margin-bottom: 15px;">
+                    Загрузите классификатор со столбцами <b>Класс</b>, <b>Подкласс</b> и характеристиками. После запуска AI сопоставит нормализованные модели с классом и подклассом. Предположительные результаты будут выделены оранжевым цветом.
+                </p>
+                <div class="controls">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button class="btn btn-outline" onclick="loadClassifier()">Загрузить классификатор (Excel)</button>
+                        <span id="classifier-status" style="color: var(--text-light); font-size: 0.9rem;">Классификатор не загружен</span>
+                    </div>
+                    <button class="btn btn-info" onclick="runClassification()">Выполнить классификацию</button>
+                </div>
+                <div id="classification-stats" style="display: none; margin-top: 12px; color: var(--text-light); font-size: 0.9rem;"></div>
+            </div>
+
+
+            <div class="block-container" id="edit-block" style="display: none;">
+                <div class="block-title">4. Редактирование и Экспорт</div>
+                <div class="controls">
+                    <div>
+                        <span style="font-weight: 500; color: var(--text-light);">ℹ️ Кликните на ячейку для редактирования</span>
+                    </div>
+                    <div>
+                        <button class="btn btn-success" onclick="saveAndDownload()">Скачать CSV</button>
+                        <button class="btn" style="background: #3b82f6;" onclick="saveAndDownloadJSON()">Скачать JSON</button>
+                    </div>
+                </div>
+                <div class="table-container" id="view-table"></div>
+            </div>
+
+        </div>
+
+        <div id="tab-reports" class="tab-content"><div class="placeholder"><h2>Отчеты</h2><p>Раздел в разработке</p></div></div>
+        <div id="tab-settings" class="tab-content"><div class="placeholder"><h2>Настройки</h2><p>Раздел в разработке</p></div></div>
+    </main>
+</div>
+
+<div id="status-message"></div>
+
+<script>
+    let globalData = [];
+    let globalHeaders = [];
+    let classifierData = null;
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getModelValue(row) {
+        return String(row?.['Модель после нормализации'] || row?.['Модель'] || '').trim();
+    }
+
+    function normalizeClassificationTable(classificationResults) {
+        return classificationResults.map(item => ({
+            'Класс': item?.['Класс'] ?? '',
+            'Подкласс': item?.['Подкласс'] ?? '',
+            'Модель': item?.['Модель'] ?? '',
+            'needs_review': Boolean(item?.['needs_review']),
+            'confidence': item?.['confidence'] ?? '',
+            'reason': item?.['reason'] ?? ''
+        }));
+    }
+
+    function toggleMenu() {
+        document.getElementById('overlay').classList.toggle('active');
+    }
+
+    function switchTab(tabId, element) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-links li').forEach(li => li.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        if(element) element.classList.add('active');
+        const titles = {'tab-hierarchy': 'Иерархия и модели', 'tab-reports': 'Отчеты', 'tab-settings': 'Настройки'};
+        document.getElementById('page-title').textContent = titles[tabId];
+        if (window.innerWidth < 768) toggleMenu();
+    }
+
+    function showStatus(msg, type) {
+        const el = document.getElementById('status-message');
+        el.textContent = msg; el.className = type; el.style.display = 'block';
+        if(type === 'success') setTimeout(() => { el.style.display = 'none'; }, 5000);
+    }
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        document.getElementById('fileName').textContent = e.target.files[0]?.name || '';
+    });
+
+    function readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const data = e.target.result;
+                    const workbook = XLSX.read(data, { type: "array" });
+                    const firstSheet = workbook.SheetNames?.[0];
+                    if (!firstSheet) throw new Error("Лист не найден");
+                    const ws = workbook.Sheets[firstSheet];
+                    if (!ws) throw new Error(`Лист не найден: ${firstSheet}`);
+                    const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+                    resolve(jsonData);
+                } catch (err) { reject(err); }
+            };
+            reader.onerror = () => reject(new Error("FileReader error"));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files.length) return showStatus('Выберите файл.', 'error');
+        const formData = new FormData(); 
+        formData.append('file', fileInput.files[0]);
+        showStatus('Загрузка файла...', 'info');
+
+        try {
+            const res = await fetch('/hierarchy/uploadfile/', { method: 'POST', body: formData });
+            const result = await res.json();
+            
+            if (result.status === 'success') {
+                globalData = result.data;
+                if (globalData.length) {
+                    globalHeaders = Object.keys(globalData[0]);
+                    showStatus(`Успешно загружено: ${globalData.length} записей`, 'success');
+                    renderTable();
+                    document.getElementById('edit-block').style.display = 'block';
+                    document.getElementById('normalize-block').style.display = 'block';
+                    document.getElementById('classify-block').style.display = 'block';
+                } else {
+                    showStatus('Файл пуст.', 'error');
+                }
+            } else {
+                showStatus(`Ошибка: ${result.message || 'Неизвестная ошибка'}`, 'error');
+            }
+        } catch (e) { 
+            showStatus('Ошибка сервера: ' + e.message, 'error'); 
+        }
+    }
+
+    async function runNormalization() {
+        if (!globalData.length) return showStatus('Нет данных', 'error');
+        showStatus('Нормализация...', 'info');
+        try {
+            const res = await fetch('/hierarchy/normalize', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: globalData })
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                globalData = result.data; globalHeaders = Object.keys(globalData[0]);
+                renderTable(); showStatus('Нормализация завершена', 'success');
+            } else { showStatus(`Ошибка: ${result.message}`, 'error'); }
+        } catch (e) { showStatus('Ошибка сервера', 'error'); }
+    }
+
+    async function loadClassifier() {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = '.xlsx, .xls';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const jsonData = await readExcelFile(file);
+                if (jsonData.length < 2) return showStatus('Файл классификатора пуст', 'error');
+
+                const headers = jsonData[0].map(h => String(h || '').trim());
+                const normalizedHeaders = headers.map(h => h.toLowerCase());
+                const requiredColumns = ['Класс', 'Подкласс'];
+                const requiredIndexes = {};
+
+                requiredColumns.forEach(col => {
+                    requiredIndexes[col] = normalizedHeaders.indexOf(col.toLowerCase());
+                });
+
+                if (Object.values(requiredIndexes).some(index => index === -1)) {
+                    return showStatus('Не найдены обязательные колонки: Класс, Подкласс', 'error');
+                }
+
+                const classifierList = [];
+                for (let i = 1; i < jsonData.length; i++) {
+                    const row = jsonData[i] || [];
+                    const item = {};
+                    let hasValue = false;
+
+                    headers.forEach((header, index) => {
+                        const cellValue = row[index];
+                        const normalizedValue = typeof cellValue === 'string' ? cellValue.trim() : cellValue;
+                        item[header] = normalizedValue ?? '';
+                        if (!hasValue && String(item[header] ?? '').trim()) {
+                            hasValue = true;
+                        }
+                    });
+
+                    if (!hasValue) continue;
+                    if (!String(item['Класс'] || '').trim()) continue;
+                    classifierList.push(item);
+                }
+
+                if (classifierList.length > 0) {
+                    classifierData = classifierList;
+                    document.getElementById('classifier-status').textContent = `Загружено строк: ${classifierList.length}`;
+                    document.getElementById('classifier-status').style.color = 'var(--success)';
+                    showStatus('Классификатор загружен', 'success');
+                } else {
+                    showStatus('Классификатор пуст или не содержит валидных строк', 'error');
+                }
+
+            } catch (err) {
+                showStatus(`Ошибка загрузки классификатора: ${err.message || err}`, 'error');
+            }
+        };
+        input.click();
+    }
+
+    async function runClassification() {
+        if (!globalData.length) return showStatus('Нет данных', 'error');
+        if (!classifierData) return showStatus('Загрузите классификатор', 'error');
+        showStatus('Классификация...', 'info');
+        try {
+            const res = await fetch('/hierarchy/classify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: globalData, classifier: classifierData })
+            });
+
+            const result = await res.json();
+
+            if (!res.ok) {
+                showStatus(`Ошибка: ${result.detail || result.message || 'Не удалось выполнить классификацию'}`, 'error');
+                return;
+            }
+
+            if (result.status === 'success') {
+                globalData = normalizeClassificationTable(result.data || []);
+                globalHeaders = ['Класс', 'Подкласс', 'Модель', 'needs_review', 'confidence', 'reason'];
+                renderTable();
+
+                const stats = result.stats || {};
+                const statsText = [
+                    `Всего: ${stats.total ?? globalData.length}`,
+                    `Классифицировано: ${stats.classified ?? 0}`,
+                    `На проверку: ${stats.needs_review ?? 0}`,
+                    `Без класса: ${stats.unclassified ?? 0}`
+                ].join(' | ');
+
+                const statsEl = document.getElementById('classification-stats');
+                statsEl.textContent = statsText;
+                statsEl.style.display = 'block';
+
+                showStatus(`${result.message} ${statsText}`, 'success');
+            } else {
+                showStatus(`Ошибка: ${result.message || 'Не удалось выполнить классификацию'}`, 'error');
+            }
+        } catch (e) {
+            showStatus(`Ошибка сервера: ${e.message || e}`, 'error');
+        }
+    }
+
+    function renderTable() {
+        const container = document.getElementById('view-table');
+        if (!globalData.length) return;
+        
+        let html = '<table><thead><tr>';
+        globalHeaders.forEach(h => html += `<th>${escapeHtml(h)}</th>`);
+        html += '</tr></thead><tbody>';
+
+        globalData.forEach((row, rI) => {
+            const rowClass = row['needs_review'] ? 'needs-review-row' : '';
+            html += `<tr class="${rowClass}">`;
+            globalHeaders.forEach(h => {
+                const val = row[h] !== undefined && row[h] !== null ? row[h] : '';
+                html += `<td contenteditable="true" onblur="updateData(${rI}, ${JSON.stringify(h)}, this)">${escapeHtml(val)}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function updateData(rI, h, el) {
+        if (globalData[rI]) globalData[rI][h] = el.innerText;
+    }
+
+    function saveAndDownload() {
+        if (!globalData.length) return showStatus('Нет данных', 'error');
+        const headerRow = globalHeaders.join(',') + '\n';
+        const rows = globalData.map(row => globalHeaders.map(h => {
+            let v = (row[h]||'').toString();
+            if (v.includes(',') || v.includes('"')) v = `"${v.replace(/"/g, '""')}"`;
+            return v;
+        }).join(',')).join('\n');
+        const blob = new Blob([headerRow+rows], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob); link.download = "classified_data.csv";
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        showStatus('CSV скачан', 'success');
+    }
+
+    function saveAndDownloadJSON() {
+        if (!globalData.length) return showStatus('Нет данных', 'error');
+        const blob = new Blob([JSON.stringify(globalData, null, 2)], { type: 'application/json;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob); link.download = "classified_data.json";
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        showStatus('JSON скачан', 'success');
+    }
+</script>
+
+</body>
+</html>
