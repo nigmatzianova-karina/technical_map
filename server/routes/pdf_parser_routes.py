@@ -10,13 +10,6 @@ router = APIRouter(prefix="/pdf_parser", tags=["pdf_parser"])
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 
-@router.get("/", response_class=HTMLResponse)
-async def pdf_parser_page():
-    html_path = Path("client/pdf_parser.html")
-    if html_path.exists():
-        return html_path.read_text(encoding="utf-8")
-    return HTMLResponse("Страница не найдена", 404)
-
 @router.post("/api/parse")
 async def parse_document(file: UploadFile = File(...)):
     suffix = Path(file.filename).suffix.lower()

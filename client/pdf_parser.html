@@ -10,7 +10,8 @@
 <div class="main-panel">
     <div class="header">
         <a href="/" class="home-btn">🏠</a>
-        <h1>📄 Парсинг документов</h1>
+        <h1>Парсинг документов</h1>
+        <div></div>
     </div>
     <div class="content">
         <div class="main-content">
@@ -31,12 +32,12 @@
                 </div>
             </div>
 
-            <div class="results-section" id="resultsSection">
+            <div class="results-section visible" id="resultsSection">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <h2 style="margin:0;">Результат</h2>
                     <div style="display: flex; gap: 8px;">
-                        <button class="download-btn" id="downloadTextBtn" style="display:none;">📥 Текст (TXT)</button>
-                        <button class="download-btn" id="downloadExcelBtn" style="display:none;">📥 Таблицы (Excel)</button>
+                        <button class="download-btn" id="downloadTextBtn" >📥 Текст (TXT)</button>
+                        <button class="download-btn" id="downloadExcelBtn" >📥 Таблицы (Excel)</button>
                     </div>
                 </div>
                 <div style="display: flex; gap: 12px; align-items: center; margin: 16px 0;">
@@ -53,7 +54,6 @@
 
 <div id="status-message"></div>
 
-<script src="/assets/js/xlsx.full.min.js"></script>
 <script src="/assets/js/utils.js"></script>
 <script src="/assets/js/pdf-parser.js"></script>
 </body>

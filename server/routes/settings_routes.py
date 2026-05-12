@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import json
 from pathlib import Path
 import httpx
+from server.core.config import load_settings
+
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -22,18 +24,7 @@ class SettingsRequest(BaseModel):
 async def get_settings():
     """Получить текущие настройки."""
     try:
-        if SETTINGS_FILE.exists():
-            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        else:
-            return {
-                "provider": "openrouter",
-                "api_key": "",
-                "model": "openai/gpt-4o-mini",
-                "max_tokens": 3000,
-                "master_prompt": "",
-                "temperature": 0.3
-            }
+        return load_settings()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка чтения настроек: {str(e)}")
 

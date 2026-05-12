@@ -145,5 +145,21 @@
         }
     });
 </script>
+<script>
+    // Автозаполнение модели из URL при переходе из иерархии
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const model = params.get('model');
+        if (model) {
+            const interval = setInterval(() => {
+                const input = document.getElementById('modelName');
+                if (input) {
+                    input.value = model;
+                    clearInterval(interval);
+                }
+            }, 100);
+        }
+    })();
+</script>
 </body>
 </html>

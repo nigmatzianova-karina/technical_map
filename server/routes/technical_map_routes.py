@@ -1,12 +1,11 @@
-import json, asyncio, base64, re
-from pathlib import Path
+import base64, json
 from typing import Optional, List, Dict
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
-from fastapi.responses import HTMLResponse
-from server.utils.settings import load_settings
+from server.core.config import load_settings
 from server.services.filework import create_xlsx
 from server.services.parsing.pdf_parser import parse_pdf_bytes
-from server.services.llm.client import call_openrouter_sync
+from server.services.llm.client import call_openrouter_async
+from server.services.llm.response_parser import parse_tech_card_response
 
 router = APIRouter(prefix="/tech_map", tags=["tech_map"])
 
@@ -18,10 +17,6 @@ CSV_HEADERS = [
     "Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"
 ]
 
-@router.get("/", response_class=HTMLResponse)
-async def tech_map_page():
-    html_path = Path("client/technical_map.html")
-    return html_path.read_text(encoding="utf-8") if html_path.exists() else HTMLResponse("Страница не найдена", 404)
 
 @router.post("/api/generate")
 async def generate_tech_card(
@@ -37,10 +32,11 @@ async def generate_tech_card(
 ):
     if not api_key.strip():
         raise HTTPException(status_code=400, detail="API ключ обязателен")
-    
+
     if not master_prompt:
         settings = load_settings()
         master_prompt = settings.get("master_prompt", "")
+
     format_instruction = (
         "Ответ должен быть строго JSON-объектом с полями:\n"
         "{\n"
@@ -59,48 +55,52 @@ async def generate_tech_card(
         file_text = "\n".join(parsed["pages_text"][:2])
         full_prompt += f"\n\nТехпаспорт:\n{file_text[:3000]}"
 
-    loop = asyncio.get_event_loop()
     try:
-        response_text = await loop.run_in_executor(
-            None, call_openrouter_sync, full_prompt, model, api_key, temperature, max_tokens, "json_object"
+        response_text = await call_openrouter_async(
+            prompt=full_prompt,
+            model=model,
+            api_key=api_key,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format="json_object"
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    text_desc = ""
-    rows = []
-    try:
-        data = json.loads(response_text)
-        if isinstance(data, dict):
-            text_desc = data.get("ТЕКСТ_ОТВЕТ", "")
-            table_str = data.get("ТАБЛИЦА", "")
-            if table_str:
-                rows = _parse_pipe_table(table_str)
-    except json.JSONDecodeError:
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if json_match:
+    text_desc, rows = parse_tech_card_response(response_text)
+
+    expected_keys = [
+        "Элемент","Подэлемент","Наименование операции","Краткое содержание работ",
+        "Вид ТОиР","Периодичность","Норма времени, часов","Количество исполнителей",
+        "Профессия/Квалификация","Трудоёмкость, человеко/часов",
+        "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
+        "Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"
+    ]
+    fixed_rows = []
+    for row in rows:
+        fixed_row = {}
+        for k, v in row.items():
             try:
-                data = json.loads(json_match.group())
-                text_desc = data.get("ТЕКСТ_ОТВЕТ", "")
-                table_str = data.get("ТАБЛИЦА", "")
-                if table_str:
-                    lines = table_str.split('\n')
-                    clean = []
-                    for line in lines:
-                        if line.count('|') >= 15:
-                            clean.append(line)
-                    if clean:
-                        table_str = '\n'.join(clean)
-                    rows = _parse_pipe_table(table_str)
-            except:
-                pass
-        if not rows:
-            text_desc = response_text
+                new_key = k.encode('latin1').decode('utf-8')
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                new_key = k
+            try:
+                if isinstance(v, str):
+                    new_value = v.encode('latin1').decode('utf-8')
+                else:
+                    new_value = v
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                new_value = v
+            fixed_row[new_key] = new_value
+        clean_row = {key: fixed_row.get(key, '') for key in expected_keys}
+        fixed_rows.append(clean_row)
+    rows = fixed_rows
 
     xlsx_data = None
     if rows:
-        full_rows = [dict(zip(CSV_HEADERS, [row.get(h, "") for h in CSV_HEADERS])) for row in rows]
-        xlsx_bytes = create_xlsx(CSV_HEADERS, [list(r.values()) for r in full_rows], equipment_class, subclass, model_name)
+        full_rows = [dict(zip(expected_keys, [row.get(h, "") for h in expected_keys])) for row in rows]
+        xlsx_bytes = create_xlsx(expected_keys, [list(r.values()) for r in full_rows],
+                                 equipment_class, subclass, model_name)
         xlsx_data = base64.b64encode(xlsx_bytes).decode()
 
     return {
@@ -114,34 +114,6 @@ async def generate_tech_card(
     }
 
 
-def _parse_pipe_table(table_str: str) -> List[Dict[str, str]]:
-    lines = table_str.strip().split('\n')
-    clean_lines = []
-    for line in lines:
-        if '|' not in line:
-            continue
-        idx = line.find('{iNT')
-        if idx != -1:
-            line = line[:idx].strip()
-        if '|' in line:
-            clean_lines.append(line)
-        else:
-            pass
-    
-    if len(clean_lines) < 2:
-        return []
-    headers = [h.strip() for h in clean_lines[0].split('|') if h.strip()]
-    if not headers:
-        return []
-    rows = []
-    for line in clean_lines[1:]:
-        cells = [c.strip() for c in line.split('|')]
-        while len(cells) < len(headers):
-            cells.append("")
-        row = {headers[i]: cells[i] if i < len(cells) else "" for i in range(len(headers))}
-        rows.append(row)
-    return rows
-
 @router.post("/api/chat")
 async def chat_endpoint(message: str = Form(...), history: Optional[str] = Form("[]")):
     settings = load_settings()
@@ -153,15 +125,18 @@ async def chat_endpoint(message: str = Form(...), history: Optional[str] = Form(
     except:
         pass
     messages.append({"role": "user", "content": message})
+
+    api_key = settings.get("api_key", "")
+    if not api_key:
+        return {"reply": "API ключ не настроен."}
+
     try:
-        loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None, lambda: call_openrouter_sync(
-                system_msg + "\n" + message,
-                settings.get("model", "openai/gpt-4o-mini"),
-                settings.get("api_key", ""),
-                0.3, 500
-            )
+        response = await call_openrouter_async(
+            prompt=system_msg + "\n" + message,
+            model=settings.get("model", "openai/gpt-4o-mini"),
+            api_key=api_key,
+            temperature=0.3,
+            max_tokens=500
         )
         return {"reply": response}
     except Exception as e:

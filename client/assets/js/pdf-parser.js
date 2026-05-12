@@ -109,7 +109,7 @@
 
     function displayResult(data) {
         const section = document.getElementById('resultsSection');
-        section.classList.add('visible');
+        // section.classList.add('visible');
         const container = document.getElementById('parsedContent');
         container.innerHTML = '';
 

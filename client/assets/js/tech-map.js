@@ -46,6 +46,9 @@
             }
         }
 
+        const resultsSection = document.getElementById('resultsSection');
+        if (resultsSection) resultsSection.classList.add('visible');
+
         console.log('✅ TechMap initialized');
     }
 

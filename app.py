@@ -34,8 +34,3 @@ async def technical_map_page(request: Request):
 @app.get("/pdf_parser/")
 async def pdf_parser_page(request: Request):
     return templates.TemplateResponse("pdf_parser.html", {"request": request})
-
-test_dir = Path(__file__).parent / "tests"
-if test_dir.exists():
-    app.mount("/tests", StaticFiles(directory=str(test_dir)), name="tests")
-    

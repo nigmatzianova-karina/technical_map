@@ -106,19 +106,6 @@ def extract_tables_with_pdfplumber(pdf_bytes: bytes) -> List[List[List[str]]]:
     return final
 
 
-def extract_tables_with_docling(pdf_bytes: bytes) -> List[str]:
-    tables = extract_tables_with_pdfplumber(pdf_bytes)
-    markdown_tables = []
-    for table in tables:
-        if not table:
-            continue
-        md = "| " + " | ".join(table[0]) + " |\n"
-        md += "| " + " | ".join(["---"] * len(table[0])) + " |\n"
-        for row in table[1:]:
-            md += "| " + " | ".join(row) + " |\n"
-        markdown_tables.append(md)
-    return markdown_tables
-
 def parse_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
     pages_text = extract_text_by_pages(pdf_bytes)
     tables = extract_tables_with_pdfplumber(pdf_bytes)

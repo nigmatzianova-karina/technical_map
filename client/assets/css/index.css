@@ -1,0 +1,111 @@
+/* Стили главной страницы (только уникальные) */
+body.index-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+.header-index {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.header-index h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: .5rem;
+}
+
+.header-index p {
+    font-size: 1.1rem;
+    color: var(--text-light);
+}
+
+.cards {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.card {
+    position: relative;
+    width: 320px;
+    padding: 2.5rem 2rem;
+    border-radius: 16px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+    transition: transform .3s, box-shadow .3s, border-color .3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.card:hover {
+    transform: translateY(-6px);
+    border-color: var(--primary);
+    box-shadow: 0 12px 32px rgba(91, 106, 240, 0.12);
+}
+
+.card-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    margin-bottom: 1.2rem;
+}
+
+.card:nth-child(1) .card-icon { background: rgba(91, 106, 240, 0.1); }
+.card:nth-child(2) .card-icon { background: rgba(139, 124, 240, 0.1); }
+.card:nth-child(3) .card-icon { background: rgba(46, 204, 113, 0.1); }
+
+.card h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin-bottom: .6rem;
+    color: var(--text);
+}
+
+.card p {
+    font-size: .9rem;
+    color: var(--text-light);
+    line-height: 1.5;
+}
+
+.card-arrow {
+    margin-top: 1.5rem;
+    font-size: 1.2rem;
+    color: var(--primary);
+    opacity: 0;
+    transform: translateX(-8px);
+    transition: opacity .3s, transform .3s;
+}
+
+.card:hover .card-arrow {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.footer {
+    margin-top: 3rem;
+    font-size: .8rem;
+    color: var(--text-light);
+}
+
+@media (max-width: 720px) {
+    .header-index h1 { font-size: 1.8rem; }
+    .card { width: 100%; max-width: 360px; }
+}

@@ -4,29 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Главная</title>
-    <style>
-        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0f0f1a;color:#e0e0e0;padding:2rem}
-        .header{text-align:center;margin-bottom:3rem}
-        .header h1{font-size:2.4rem;font-weight:700;background:linear-gradient(135deg,#6e8efb,#a777e3);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}
-        .header p{font-size:1.1rem;color:#888}
-        .cards{display:flex;gap:2rem;flex-wrap:wrap;justify-content:center}
-        .card{position:relative;width:320px;padding:2.5rem 2rem;border-radius:16px;background:#1a1a2e;border:1px solid #2a2a4a;text-decoration:none;color:inherit;transition:transform .3s,box-shadow .3s,border-color .3s;display:flex;flex-direction:column;align-items:center;text-align:center}
-        .card:hover{transform:translateY(-6px);border-color:#6e8efb;box-shadow:0 12px 32px rgba(110,142,251,.15)}
-        .card-icon{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;margin-bottom:1.2rem}
-        .card:nth-child(1) .card-icon{background:rgba(110,142,251,.15)}
-        .card:nth-child(2) .card-icon{background:rgba(167,119,227,.15)}
-        .card:nth-child(3) .card-icon{background:rgba(16,185,129,.15)}
-        .card h2{font-size:1.3rem;font-weight:600;margin-bottom:.6rem}
-        .card p{font-size:.9rem;color:#777;line-height:1.5}
-        .card-arrow{margin-top:1.5rem;font-size:1.2rem;color:#6e8efb;opacity:0;transform:translateX(-8px);transition:opacity .3s,transform .3s}
-        .card:hover .card-arrow{opacity:1;transform:translateX(0)}
-        .footer{margin-top:3rem;font-size:.8rem;color:#444}
-        @media (max-width:720px){.header h1{font-size:1.8rem}.card{width:100%;max-width:360px}}
-    </style>
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/index.css">
 </head>
-<body>
-    <div class="header">
+<body class="index-page">
+    <div class="header-index">
         <h1>Мой проект</h1>
         <p>Выберите раздел</p>
     </div>
