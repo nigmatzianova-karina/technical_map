@@ -1,6 +1,5 @@
 """
-Pydantic-модели для валидации данных.
-Совместимо с Pydantic v2.
+Pydantic-схемы для валидации запросов и ответов API.
 """
 
 from pydantic import BaseModel, Field

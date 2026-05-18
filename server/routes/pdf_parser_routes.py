@@ -1,3 +1,7 @@
+"""
+Роуты для парсинга PDF и DOCX файлов.
+"""
+
 import base64
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse

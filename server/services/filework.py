@@ -1,3 +1,7 @@
+"""
+Утилиты для создания XLSX-файлов и вызова парсинга PDF.
+"""
+
 import io
 from typing import List, Dict, Any
 from .parsing.pdf_parser import parse_pdf_bytes

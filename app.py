@@ -7,6 +7,16 @@ from server.routes.technical_map_routes import router as technical_map_router
 from server.routes.pdf_parser_routes import router as pdf_parser_router
 from server.routes.settings_routes import router as settings_router
 
+import logging, sys
+
+logging.basicConfig(
+    level=logging.INFO,  # Показывать INFO и выше
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)  # Вывод в консоль
+    ]
+)
+
 app = FastAPI(title="TK AI Generator")
 
 app.include_router(hierarchy_router)

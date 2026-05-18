@@ -1,3 +1,8 @@
+"""
+Парсинг PDF: извлечение текста и таблиц с объединением по страницам.
+Использует библиотеки fitz (PyMuPDF) и pdfplumber.
+"""
+
 import fitz
 import pdfplumber
 import logging
@@ -7,11 +12,51 @@ import io
 logger = logging.getLogger(__name__)
 
 def extract_text_by_pages(pdf_bytes: bytes) -> List[str]:
+    """
+    Извлекает текст из PDF тремя способами по очереди:
+    1. PyMuPDF (fitz) — для цифровых PDF.
+    2. pdfplumber — если fitz не дал результата.
+    3. OCR (pytesseract) — для отсканированных документов.
+    Возвращает список текстов страниц.
+    """
     pages = []
+    logger.info("Извлечение текста: попытка через PyMuPDF...")
     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
         for page in doc:
             text = page.get_text("text")
-            pages.append(text.strip())
+            pages.append(text.strip() if text else "")
+    
+    # Если fitz не дал текста ни на одной странице – пробуем pdfplumber
+    if not any(p for p in pages):
+        logger.info("PyMuPDF не извлёк текст. Пробуем pdfplumber...")
+        try:
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                pages = []
+                for page in pdf.pages:
+                    text = page.extract_text() or ""
+                    pages.append(text.strip())
+        except Exception as e:
+            logger.warning(f"pdfplumber тоже не смог извлечь текст: {e}")
+
+    # Если и pdfplumber не дал текста – пробуем OCR
+    if not any(p for p in pages):
+        logger.info("Пытаемся распознать текст с помощью OCR (Tesseract)...")
+        try:
+            from pdf2image import convert_from_bytes
+            import pytesseract
+            
+            images = convert_from_bytes(pdf_bytes, dpi=300)
+            pages = []
+            for i, img in enumerate(images):
+                # Для русского языка: lang='rus+eng'
+                text = pytesseract.image_to_string(img, lang='rus+eng')
+                pages.append(text.strip())
+                logger.info(f"OCR страница {i+1}: распознано {len(text)} символов")
+        except ImportError as e:
+            logger.error(f"OCR не доступен: {e}. Установите pytesseract и pdf2image.")
+        except Exception as e:
+            logger.error(f"Ошибка OCR: {e}")
+    
     return pages
 
 def _normalize_cells(row: List[str]) -> List[str]:
@@ -20,7 +65,10 @@ def _normalize_cells(row: List[str]) -> List[str]:
 def _merge_on_page(
     tables_with_coords: List[Tuple[List[List[str]], Tuple[float, float, float, float]]]
 ) -> List[List[List[str]]]:
-    """Слияние близких таблиц в пределах одной страницы (разрыв <= 50pt)."""
+    """
+    Слияние таблиц на одной странице, если они расположены близко и имеют совместимые колонки.
+    Разрыв до 70pt, сравнение с учётом нормализации заголовков.
+    """
     if not tables_with_coords:
         return []
     tables_with_coords.sort(key=lambda t: (t[1][1], t[1][0]))
@@ -29,23 +77,42 @@ def _merge_on_page(
     current_bbox = tables_with_coords[0][1]
 
     for table, bbox in tables_with_coords[1:]:
-        if not current_table or not table:
-            current_table = table
-            current_bbox = bbox
-            continue
+        # Убираем полностью пустые строки в начале
         while table and all(cell.strip() == "" for cell in table[0]):
             table.pop(0)
         if not table:
             continue
+
         cur_cols = len(current_table[0]) if current_table else 0
         new_cols = len(table[0]) if table else 0
-        if new_cols != cur_cols:
+
+        # Если одна из таблиц одноколоночная — вероятно, не таблица, пропускаем слияние
+        if cur_cols <= 1 or new_cols <= 1:
             merged.append(current_table)
             current_table = table
             current_bbox = bbox
             continue
-        gap = bbox[1] - current_bbox[3]
-        if gap <= 50:
+
+        # Допускаем разницу в 1 колонку (могла быть объединена)
+        if abs(new_cols - cur_cols) > 1:
+            merged.append(current_table)
+            current_table = table
+            current_bbox = bbox
+            continue
+
+        gap = bbox[1] - current_bbox[3]  # расстояние между таблицами
+        # Увеличим порог до 70pt
+        if gap <= 70:
+            # Приводим к одинаковому числу колонок (добавляем пустые ячейки)
+            max_cols = max(cur_cols, new_cols)
+            for row in current_table:
+                while len(row) < max_cols:
+                    row.append("")
+            for row in table:
+                while len(row) < max_cols:
+                    row.append("")
+
+            # Если заголовки похожи, пропускаем их при слиянии
             if _normalize_cells(current_table[0]) == _normalize_cells(table[0]):
                 current_table.extend(table[1:])
             else:
@@ -60,9 +127,11 @@ def _merge_on_page(
             merged.append(current_table)
             current_table = table
             current_bbox = bbox
+
     if current_table:
         merged.append(current_table)
     return merged
+
 
 def extract_tables_with_pdfplumber(pdf_bytes: bytes) -> List[List[List[str]]]:
     """Извлечение таблиц из PDF с межстраничным объединением."""
@@ -103,12 +172,34 @@ def extract_tables_with_pdfplumber(pdf_bytes: bytes) -> List[List[List[str]]]:
                 prev_table.extend(next_table)
         else:
             prev_table.extend(next_table)
-    return final
+
+    cleaned_final = []
+    for table in final:
+        if not table:
+            continue
+        # Удаляем пустые строки
+        table = [row for row in table if any(cell.strip() for cell in row)]
+        if not table:
+            continue
+        # Удаляем пустые столбцы (все ячейки в столбце пустые)
+        col_count = len(table[0])
+        valid_cols = []
+        for c in range(col_count):
+            if any(row[c].strip() if c < len(row) else False for row in table):
+                valid_cols.append(c)
+        if valid_cols:
+            table = [[row[c] if c < len(row) else "" for c in valid_cols] for row in table]
+        cleaned_final.append(table)
+    return cleaned_final
 
 
 def parse_pdf_bytes(pdf_bytes: bytes) -> Dict[str, Any]:
     pages_text = extract_text_by_pages(pdf_bytes)
     tables = extract_tables_with_pdfplumber(pdf_bytes)
+    has_text = any(t.strip() for t in pages_text)
+    if not has_text and not tables:
+        logger.warning("PDF не содержит ни текста, ни таблиц. Возможно, это сканированный документ.")
+
     return {
         "pages_text": pages_text,
         "tables": tables,

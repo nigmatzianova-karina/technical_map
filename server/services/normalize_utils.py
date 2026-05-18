@@ -1,3 +1,10 @@
+"""
+Модуль нормализации текста согласно ГОСТ:
+- normalize_units_and_attrs – приводит единицы измерения и атрибуты к сокращениям
+- normalize_model_name – нормализует наименование модели по 13 правилам
+- smart_normalize – комбинирует обе нормализации
+"""
+
 import re
 from typing import Dict
 import pandas as pd

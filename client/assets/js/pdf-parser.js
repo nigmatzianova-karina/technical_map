@@ -1,34 +1,6 @@
 (function() {
     'use strict';
 
-    const escapeHtml = window.escapeHtml || function(text) {
-        if (typeof text !== 'string') return text;
-        const d = document.createElement('div');
-        d.textContent = text;
-        return d.innerHTML;
-    };
-    const showStatus = window.showStatus || function(msg, type = 'info', duration = 5000) {
-        let el = document.getElementById('status-message');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'status-message';
-            document.body.appendChild(el);
-        }
-        el.textContent = msg;
-        el.className = type;
-        el.style.display = 'block';
-        if (duration > 0 && type === 'success') {
-            setTimeout(() => { el.style.display = 'none'; }, duration);
-        }
-    };
-    const formatFileSize = window.formatFileSize || function(bytes) {
-        if (bytes === 0) return '0 Б';
-        const k = 1024;
-        const sizes = ['Б', 'КБ', 'МБ', 'ГБ'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    };
-
     const HISTORY_KEY = 'pdf_parser_history';
     let selectedFile = null;
     let lastResult = null;
@@ -40,8 +12,57 @@
         document.getElementById('downloadExcelBtn').addEventListener('click', downloadTables);
         document.getElementById('historySelect').addEventListener('change', onHistorySelect);
         document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
+        document.getElementById('createTechCardFromParse')?.addEventListener('click', createTechCardFromParse);
         loadHistoryDropdown();
     });
+
+    function createTechCardFromParse() {
+        if (!lastResult || !lastResult.pages_text) {
+            showStatus('Нет данных для создания техкарты', 'error');
+            return;
+        }
+        // Формируем Markdown-документ
+        let markdown = '';
+        const fileName = selectedFile?.name || 'document.pdf';
+        markdown += `# Технический паспорт: ${fileName}\n\n`;
+        
+        // Текст документа
+        markdown += '## Извлечённый текст\n\n';
+        lastResult.pages_text.forEach((txt, idx) => {
+            if (txt.trim()) {
+                markdown += `### Страница ${idx+1}\n${txt}\n\n`;
+            }
+        });
+        
+        // Таблицы
+        if (lastResult.tables && lastResult.tables.length) {
+            markdown += '## Таблицы\n\n';
+            lastResult.tables.forEach((table, tIdx) => {
+                if (table.length === 0) return;
+                markdown += `### Таблица ${tIdx+1}\n\n`;
+                // Заголовки
+                markdown += '| ' + table[0].map(h => h || ' ').join(' | ') + ' |\n';
+                markdown += '|' + table[0].map(() => '---').join('|') + '|\n';
+                // Данные
+                table.slice(1).forEach(row => {
+                    markdown += '| ' + row.map(c => c || ' ').join(' | ') + ' |\n';
+                });
+                markdown += '\n';
+            });
+        }
+
+        // Сохраняем в sessionStorage
+        sessionStorage.setItem('parsedTechContext', markdown);
+        sessionStorage.setItem('parsedTechFileName', fileName);
+        sessionStorage.setItem('parsedTechFileSize', selectedFile?.size || 0);
+        // Пытаемся угадать модель из имени файла
+        const modelFromName = fileName.replace(/\.(pdf|docx)$/i, '').replace(/[_-]/g, ' ').trim();
+        sessionStorage.setItem('parsedTechModel', modelFromName);
+        sessionStorage.setItem('parsedTechClass', '');
+        sessionStorage.setItem('parsedTechSubclass', '');
+
+        window.location.href = '/technical_map/';
+    }
 
     function initFileUpload() {
         const input = document.getElementById('fileInput');
@@ -141,6 +162,15 @@
 
         document.getElementById('downloadTextBtn').style.display = data.pages_text?.length ? 'inline-flex' : 'none';
         document.getElementById('downloadExcelBtn').style.display = data.tables?.length ? 'inline-flex' : 'none';
+
+        const btnCreateTech = document.getElementById('createTechCardFromParse');
+        if (btnCreateTech) {
+            if (data.pages_text && data.pages_text.length && data.pages_text.some(t => t.trim())) {
+                btnCreateTech.style.display = 'inline-flex';
+            } else {
+                btnCreateTech.style.display = 'none';
+            }
+        }
     }
 
     function downloadText() {

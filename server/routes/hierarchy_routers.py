@@ -1,3 +1,7 @@
+"""
+Роуты для загрузки Excel, нормализации данных и работы с иерархией.
+"""
+
 from fastapi import APIRouter, File, UploadFile
 from fastapi.responses import HTMLResponse
 from pathlib import Path

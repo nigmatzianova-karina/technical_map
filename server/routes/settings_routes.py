@@ -1,3 +1,7 @@
+"""
+Роуты для управления настройками, списком моделей и проверки API-ключа.
+"""
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import json

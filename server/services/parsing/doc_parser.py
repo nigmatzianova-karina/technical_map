@@ -1,3 +1,7 @@
+"""
+Парсинг DOCX: извлечение параграфов и таблиц.
+"""
+
 import io
 import logging
 from typing import Dict, Any

@@ -13,6 +13,21 @@
         currentRows: [] 
     };
 
+
+    function updateFileInfoCard(name, size, type) {
+        const card = document.getElementById('fileInfoCard');
+        if (!card) return;
+        document.getElementById('fileInfoName').textContent = name;
+        document.getElementById('fileInfoSize').textContent = formatFileSize(size);
+        document.getElementById('fileInfoType').textContent = type;
+        card.style.display = 'block';
+    }
+
+    function hideFileInfoCard() {
+        const card = document.getElementById('fileInfoCard');
+        if (card) card.style.display = 'none';
+    }
+
     window.TechMap = {
         init,
         openSettings,
@@ -34,6 +49,43 @@
         initFileUpload();
         initEventListeners();
         renderEmptyTable();
+
+            // Проверяем, были ли переданы данные из парсинга
+        const parsedMarkdown = sessionStorage.getItem('parsedTechContext');
+        if (parsedMarkdown) {
+            try {
+                const fileName = sessionStorage.getItem('parsedTechFileName') || 'document.md';
+                const fileSize = parseInt(sessionStorage.getItem('parsedTechFileSize') || '0');
+                const model = sessionStorage.getItem('parsedTechModel') || '';
+                const equipClass = sessionStorage.getItem('parsedTechClass') || '';
+                const subclass = sessionStorage.getItem('parsedTechSubclass') || '';
+
+                if (model) document.getElementById('modelName').value = model;
+                if (equipClass) document.getElementById('equipmentClass').value = equipClass;
+                if (subclass) document.getElementById('subclass').value = subclass;
+
+                // Создаём виртуальный .md файл
+                const blob = new Blob([parsedMarkdown], { type: 'text/markdown' });
+                state.selectedFile = new File([blob], fileName.replace(/\.pdf$/i, '.md'), { type: 'text/markdown' });
+                console.log('Размер виртуального файла:', state.selectedFile.size, 'байт');
+                console.log('Первые 300 символов:', parsedMarkdown.substring(0, 300));
+                // Показываем карточку файла
+                updateFileInfoCard(fileName, state.selectedFile.size, 'Обработанный текст (Markdown)');
+
+                // Очищаем sessionStorage, чтобы не мешать
+                sessionStorage.removeItem('parsedTechContext');
+                sessionStorage.removeItem('parsedTechFileName');
+                sessionStorage.removeItem('parsedTechFileSize');
+                sessionStorage.removeItem('parsedTechModel');
+                sessionStorage.removeItem('parsedTechClass');
+                sessionStorage.removeItem('parsedTechSubclass');
+
+                addAIMessage('📄 Загружены данные из распарсенного документа. Нажмите «Отправить» для генерации техкарты.');
+            } catch (e) {
+                console.warn('Ошибка чтения данных парсинга:', e);
+            }
+        }
+
         refreshHistorySelect();
 
         if (state.tableHistory.length > 0) {
@@ -107,6 +159,7 @@
         input.addEventListener('change', (e) => {
             if (e.target.files[0]) {
                 state.selectedFile = e.target.files[0];
+                updateFileInfoCard(state.selectedFile.name, state.selectedFile.size, 'PDF');
                 document.getElementById('fileName').textContent =
                     `${state.selectedFile.name} (${formatFileSize(state.selectedFile.size)})`;
                 dropZone.classList.add('has-file');
@@ -117,6 +170,7 @@
             e.preventDefault();
             if (e.dataTransfer.files[0]) {
                 state.selectedFile = e.dataTransfer.files[0];
+                updateFileInfoCard(state.selectedFile.name, state.selectedFile.size, 'PDF');
                 document.getElementById('fileName').textContent =
                     `${state.selectedFile.name} (${formatFileSize(state.selectedFile.size)})`;
                 dropZone.classList.add('has-file');
@@ -132,6 +186,13 @@
         document.getElementById('downloadBtn')?.addEventListener('click', downloadXlsx);
         document.getElementById('historySelect')?.addEventListener('change', onHistorySelect);
         document.getElementById('clearHistoryBtn')?.addEventListener('click', clearTableHistory);
+                document.getElementById('clearFileBtn')?.addEventListener('click', () => {
+            state.selectedFile = null;
+            document.getElementById('fileName').textContent = '';
+            document.getElementById('fileDropZone').classList.remove('has-file');
+            hideFileInfoCard();
+            showStatus('Файл удалён', 'success', 2000);
+        });
     }
 
     function loadTableHistory() {

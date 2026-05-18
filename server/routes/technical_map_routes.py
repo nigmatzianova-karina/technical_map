@@ -1,3 +1,7 @@
+"""
+Роуты для генерации технологических карт и чата.
+"""
+
 import base64, json
 from typing import Optional, List, Dict
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
@@ -6,6 +10,10 @@ from server.services.filework import create_xlsx
 from server.services.parsing.pdf_parser import parse_pdf_bytes
 from server.services.llm.client import call_openrouter_async
 from server.services.llm.response_parser import parse_tech_card_response
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/tech_map", tags=["tech_map"])
 
@@ -30,6 +38,8 @@ async def generate_tech_card(
     max_tokens: int = Form(3000),
     master_prompt: Optional[str] = Form("")
 ):
+    logger.info("🚀 ЗАПРОС НА ГЕНЕРАЦИЮ ПОЛУЧЕН")
+    logger.info(f"📦 Параметры: model={model_name}, class={equipment_class}, file={file.filename if file else None}")
     if not api_key.strip():
         raise HTTPException(status_code=400, detail="API ключ обязателен")
 
@@ -41,19 +51,94 @@ async def generate_tech_card(
         "Ответ должен быть строго JSON-объектом с полями:\n"
         "{\n"
         '  "ТЕКСТ_ОТВЕТ": "текстовое описание",\n'
-        '  "ТАБЛИЦА": "строка с заголовками и данными через | и \\n"\n'
-        "}\n"
-        "Не добавляй никаких других ключей. Убедись, что JSON валидный."
+        '  "ТАБЛИЦА": [\n'
+        '    ["Заголовок1", "Заголовок2", ...],\n'
+        '    ["Значение1", "Значение2", ...],\n'
+        '    ...\n'
+        '  ]\n'
+        "}\n\n"
+        "ТАБЛИЦА — это массив строк. Первая строка — заголовки (ровно те, что в макете!). "
+        "Каждая следующая — значения через запятую внутри строки. "
+        "Не используй символ '|' в значениях. "
+        "Заполняй ВСЕ ячейки осмысленно, не оставляй пустых. "
+        "Для пустых данных пиши прочерк '-'. "
+        "Убедись, что JSON валидный и не содержит лишних символов.\n\n"
+        
+        # 🔥 ВАЖНО: пример только про СТРУКТУРУ, не про содержание!
+        "ПРИМЕР ФОРМАТА (НЕ КОПИРУЙ СОДЕРЖАНИЕ!):\n"
+        '{"ТЕКСТ_ОТВЕТ": "Краткое описание", "ТАБЛИЦА": [\n'
+        '["Элемент","Подэлемент","Наименование операции","Краткое содержание работ","Вид ТОиР","Периодичность","Норма времени, часов","Количество исполнителей","Профессия/Квалификация","Трудоёмкость, человеко/часов","Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ","Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"],\n'
+        '["[Элемент из документа]","[Подэлемент из документа]","[Операция]","[Описание]","[ТО-1/ТО-2/СР/КР]","[число + единица из документа]","[число]","[число]","[профессия]","[расчёт]","[ТМЦ из документа]","[число]","[ед.изм.]","[инструмент]","[СИЗ]","[требование безопасности]"]\n'
+        ']}\n\n'
+        
+        "❗ КРИТИЧЕСКИ: Все значения в ТАБЛИЦЕ бери ТОЛЬКО из текста в <TECH_PASSPORT>. "
+        "Пример выше — только для понимания структуры JSON. Не копируй 'Система смазки', '2160', '10W-40' и другие значения из примера!\n"
+        "Если в документе периодичность указана в месяцах — пиши '12 месяцев', а не '2160 часов'.\n"
+        "Если в документе нет данных для ячейки — ставь '-'.\n\n"
+        "Создай не более 15 строк данных."
+        "❗ ФИНАЛЬНАЯ ПРОВЕРКА ПЕРЕД ОТВЕТОМ:\n"
+        "1. Все значения в таблице взяты из <TECH_PASSPORT>?\n"
+        "2. Периодичность указана в тех же единицах, что в документе (месяцы/часы)?\n"
+        "3. Названия операций совпадают с формулировками документа?\n"
+        "Если хоть один ответ 'нет' — перепиши строки.\n"
     )
-    full_prompt = f"{master_prompt}\n\n{format_instruction}\n\n"
-    full_prompt += f"Модель: {model_name}\nКласс: {equipment_class}\nПодкласс: {subclass}\nСформируй техкарту."
 
+    # 🔥 Читаем файл ПЕРВЫМ делом
     file_text = ""
     if file:
         file_bytes = await file.read()
-        parsed = parse_pdf_bytes(file_bytes)
-        file_text = "\n".join(parsed["pages_text"][:2])
-        full_prompt += f"\n\nТехпаспорт:\n{file_text[:3000]}"
+        filename = file.filename or ""
+        
+        if filename.lower().endswith(('.md', '.txt')):
+            file_text = file_bytes.decode('utf-8', errors='replace')
+        else:
+            parsed = parse_pdf_bytes(file_bytes)
+            file_text = "\n\n---\n\n".join(p.strip() for p in parsed["pages_text"] if p.strip())
+        
+        # Безопасный лимит: 80 000 символов ≈ 20 000 токенов
+        MAX_CHARS = 80_000
+        if len(file_text) > MAX_CHARS:
+            half = MAX_CHARS // 2
+            file_text = (
+                file_text[:half] + 
+                "\n\n...[файл обрезан для соблюдения лимита контекста, основные данные сохранены]...\n\n" + 
+                file_text[-half:]
+            )
+        
+        logger.info(f"📄 Файл {filename}: {len(file_text)} символов отправлено в промт (~{len(file_text)//4} токенов)")
+        
+        # Проверка ключевых слов для отладки
+        keywords = ["ремонт", "то-", "обслуживание", "смазка", "периодичность"]
+        found = [kw for kw in keywords if kw in file_text.lower()]
+        if not found:
+            logger.warning("⚠️ В извлечённом тексте НЕТ ключевых разделов ТОиР!")
+        else:
+            logger.info(f"✅ Найдены разделы: {', '.join(found)}")
+
+    # 🔥 ЕДИНСТВЕННАЯ сборка промта (без дублирования!)
+    full_prompt = (
+        f"{master_prompt}\n\n"
+        f"{format_instruction}\n\n"
+        f"Модель: {model_name}\nКласс: {equipment_class}\nПодкласс: {subclass}\n\n"
+    )
+    
+    if file_text.strip():
+        full_prompt += (
+            "<TECH_PASSPORT>\n"
+            "НИЖЕ ПРЕДСТАВЛЕН ТЕКСТ ТЕХНИЧЕСКОГО ПАСПОРТА. ВСЕ ДАННЫЕ ДЛЯ КАРТЫ БРАТЬ СТРОГО ОТСЮДА.\n"
+            "Особое внимание удели разделам: «Техническое обслуживание», «Ремонт», «Смазка», «Периодичность».\n"
+            f"{file_text}\n"
+            "</TECH_PASSPORT>\n\n"
+        )
+    
+    full_prompt += "Сформируй технологическую карту в указанном JSON-формате."
+    full_prompt += (
+    "\n\n[ПРОВЕРКА] Перед генерацией таблицы ответь кратко:\n"
+    "1. Какие операции ТО указаны для 'Станина' в документе?\n"
+    "2. Есть ли в файле нормы времени для этих операций?\n"
+    "3. Какие ТМЦ упоминаются в разделе 'Смазка'?\n"
+    "Затем формируй таблицу."
+)
 
     try:
         response_text = await call_openrouter_async(
@@ -64,11 +149,22 @@ async def generate_tech_card(
             max_tokens=max_tokens,
             response_format="json_object"
         )
+            # 🔥 Отладка: покажите, что вернула модель
+        logger.info(f"🤖 RAW RESPONSE (first 300 chars): {response_text[:300]}")
+        
+        text_desc, rows = parse_tech_card_response(response_text)
+        
+        # 🔥 Отладка: сколько строк распарсилось
+        logger.info(f"📊 Распарсено строк таблицы: {len(rows)}")
+        if rows:
+            logger.info(f"📋 Первая строка: {rows[0]}")
     except Exception as e:
+        logger.error(f"Ошибка вызова LLM: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
     text_desc, rows = parse_tech_card_response(response_text)
 
+    # Нормализация строк таблицы
     expected_keys = [
         "Элемент","Подэлемент","Наименование операции","Краткое содержание работ",
         "Вид ТОиР","Периодичность","Норма времени, часов","Количество исполнителей",
@@ -76,25 +172,21 @@ async def generate_tech_card(
         "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
         "Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"
     ]
-    fixed_rows = []
+    normalized_rows = []
     for row in rows:
-        fixed_row = {}
-        for k, v in row.items():
-            try:
-                new_key = k.encode('latin1').decode('utf-8')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                new_key = k
-            try:
-                if isinstance(v, str):
-                    new_value = v.encode('latin1').decode('utf-8')
-                else:
-                    new_value = v
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                new_value = v
-            fixed_row[new_key] = new_value
-        clean_row = {key: fixed_row.get(key, '') for key in expected_keys}
-        fixed_rows.append(clean_row)
-    rows = fixed_rows
+        clean_row = {}
+        for k in expected_keys:
+            matching_key = next((key for key in row if key.strip().lower() == k.lower()), None)
+            val = row.get(matching_key) if matching_key else row.get(k, '')
+            if not val or str(val).strip() == '':
+                val = '-'
+            clean_row[k] = str(val).strip()
+        normalized_rows.append(clean_row)
+    rows = normalized_rows
+
+    # Убираем проблемную конверсию latin1→utf8 (может ломать кириллицу)
+    # Если модель возвращает корректный UTF-8, этот блок не нужен
+    # Если есть проблемы с кодировкой — лучше фиксить на уровне парсинга ответа
 
     xlsx_data = None
     if rows:
