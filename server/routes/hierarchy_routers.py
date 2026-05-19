@@ -12,6 +12,7 @@ from server.services.normalize_utils import smart_normalize
 
 router = APIRouter(prefix="/hierarchy")
 
+
 class NormalizeRequest(BaseModel):
     data: list
 
@@ -25,6 +26,7 @@ async def create_upload_file(file: UploadFile = File(...)):
         return {"filename": file.filename, "status": "success", "data": df.to_dict(orient="records")}
     except Exception as e:
         return {"filename": file.filename, "status": "error", "message": str(e)}
+
 
 @router.post("/normalize")
 async def normalize_data(request: NormalizeRequest):

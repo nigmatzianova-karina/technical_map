@@ -9,7 +9,6 @@ from pathlib import Path
 import httpx
 from server.core.config import load_settings
 
-
 router = APIRouter(prefix="/api", tags=["settings"])
 
 SETTINGS_FILE = Path(__file__).parent.parent.parent / "settings.json"
@@ -45,10 +44,10 @@ async def save_settings(request: SettingsRequest):
             "master_prompt": request.master_prompt,
             "temperature": request.temperature
         }
-        
+
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
             json.dump(settings_data, f, indent=2, ensure_ascii=False)
-        
+
         return {"status": "success", "message": "Настройки сохранены"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка сохранения: {str(e)}")
@@ -78,12 +77,13 @@ async def get_models(provider: str):
             {"value": "o3-mini", "label": "o3-mini"}
         ]
     }
-    
+
     return models.get(provider, models["openrouter"])
 
 
 class KeyValidationRequest(BaseModel):
     api_key: str
+
 
 @router.post("/key/validate")
 async def validate_key_endpoint(req: KeyValidationRequest):
@@ -98,15 +98,13 @@ async def validate_key_endpoint(req: KeyValidationRequest):
                 "https://openrouter.ai/api/v1/auth/key",
                 headers={"Authorization": f"Bearer {api_key}"}
             )
-            
+
             if response.status_code == 200:
                 return {"valid": True, "message": "Ключ валиден"}
             else:
                 return {"valid": False, "message": f"Ошибка {response.status_code}: {response.text[:100]}"}
-                
+
     except httpx.TimeoutException:
         return {"valid": False, "message": "Таймаут соединения с OpenRouter"}
     except Exception as e:
         return {"valid": False, "message": str(e)}
-    
-    

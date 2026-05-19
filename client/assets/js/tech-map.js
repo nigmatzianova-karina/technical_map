@@ -50,7 +50,6 @@
         initEventListeners();
         renderEmptyTable();
 
-            // Проверяем, были ли переданы данные из парсинга
         const parsedMarkdown = sessionStorage.getItem('parsedTechContext');
         if (parsedMarkdown) {
             try {
@@ -64,15 +63,12 @@
                 if (equipClass) document.getElementById('equipmentClass').value = equipClass;
                 if (subclass) document.getElementById('subclass').value = subclass;
 
-                // Создаём виртуальный .md файл
                 const blob = new Blob([parsedMarkdown], { type: 'text/markdown' });
                 state.selectedFile = new File([blob], fileName.replace(/\.pdf$/i, '.md'), { type: 'text/markdown' });
                 console.log('Размер виртуального файла:', state.selectedFile.size, 'байт');
                 console.log('Первые 300 символов:', parsedMarkdown.substring(0, 300));
-                // Показываем карточку файла
                 updateFileInfoCard(fileName, state.selectedFile.size, 'Обработанный текст (Markdown)');
 
-                // Очищаем sessionStorage, чтобы не мешать
                 sessionStorage.removeItem('parsedTechContext');
                 sessionStorage.removeItem('parsedTechFileName');
                 sessionStorage.removeItem('parsedTechFileSize');
@@ -284,11 +280,32 @@
             "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
             "Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"
         ];
+
+        const supplementFields = [
+            "Норма времени, часов", "Количество исполнителей", "Профессия/Квалификация",
+            "Трудоёмкость, человеко/часов", "Наименование ТМЦ", "Количество ТМЦ",
+            "Единицы измерения ТМЦ", "Наименование инструмента",
+            "Средства индивидуальной защиты", "Требования по безопасности"
+        ];
+
         const tbody = document.getElementById('resultTableBody');
         tbody.innerHTML = rows.map(row => {
-            const cells = headers.map(h => escapeHtml(row[h] ?? ''));
-            return `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+            const cells = headers.map(h => {
+                let val = row[h] ?? '';
+                const isSupplementField = supplementFields.includes(h);
+
+                const needsHighlight = val.includes('[тип.]') ||
+                                     val.includes('[ГОСТ]') ||
+                                     val.includes('[ЕНиР]') ||
+                                     (isSupplementField && val === '-');
+
+                const displayVal = val.replace(/\s*\[тип\.\]|\[ГОСТ\]|\[ЕНиР\]/g, '').trim() || '-';
+
+                return `<td${needsHighlight ? ' class="needs-review"' : ''} title="${val}">${escapeHtml(displayVal)}</td>`;
+            });
+            return `<tr>${cells.join('')}</tr>`;
         }).join('');
+
         state.currentRows = rows;
         updateDownloadButton();
     }

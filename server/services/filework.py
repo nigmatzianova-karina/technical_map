@@ -9,6 +9,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+
 def create_xlsx(headers: List[str], rows: List[List[str]], class_val: str, subclass_val: str, model_code: str) -> bytes:
     """Создает XLSX файл с технологической картой и возвращает его содержимое в виде байтов."""
     wb = openpyxl.Workbook()

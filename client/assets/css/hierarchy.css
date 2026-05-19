@@ -18,7 +18,6 @@
 input[type="file"] { display: none; }
 .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px; }
 
-/* Таблица иерархии */
 .table-container {
     overflow-x: auto;
     border: 1px solid var(--border);

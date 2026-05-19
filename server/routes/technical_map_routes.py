@@ -10,36 +10,30 @@ from server.services.filework import create_xlsx
 from server.services.parsing.pdf_parser import parse_pdf_bytes
 from server.services.llm.client import call_openrouter_async
 from server.services.llm.response_parser import parse_tech_card_response
-import logging
-
-logger = logging.getLogger(__name__)
-
 
 router = APIRouter(prefix="/tech_map", tags=["tech_map"])
 
 CSV_HEADERS = [
-    "Элемент","Подэлемент","Наименование операции","Краткое содержание работ",
-    "Вид ТОиР","Периодичность","Норма времени, часов","Количество исполнителей",
-    "Профессия/Квалификация","Трудоёмкость, человеко/часов",
-    "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
-    "Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"
+    "Элемент", "Подэлемент", "Наименование операции", "Краткое содержание работ",
+    "Вид ТОиР", "Периодичность", "Норма времени, часов", "Количество исполнителей",
+    "Профессия/Квалификация", "Трудоёмкость, человеко/часов",
+    "Наименование ТМЦ", "Количество ТМЦ", "Единицы измерения ТМЦ",
+    "Наименование инструмента", "Средства индивидуальной защиты", "Требования по безопасности"
 ]
 
 
 @router.post("/api/generate")
 async def generate_tech_card(
-    model_name: str = Form(...),
-    equipment_class: Optional[str] = Form(""),
-    subclass: Optional[str] = Form(""),
-    file: Optional[UploadFile] = File(None),
-    model: str = Form("openai/gpt-4o-mini"),
-    api_key: str = Form(...),
-    temperature: float = Form(0.3),
-    max_tokens: int = Form(3000),
-    master_prompt: Optional[str] = Form("")
+        model_name: str = Form(...),
+        equipment_class: Optional[str] = Form(""),
+        subclass: Optional[str] = Form(""),
+        file: Optional[UploadFile] = File(None),
+        model: str = Form("openai/gpt-4o-mini"),
+        api_key: str = Form(...),
+        temperature: float = Form(0.3),
+        max_tokens: int = Form(3000),
+        master_prompt: Optional[str] = Form("")
 ):
-    logger.info("🚀 ЗАПРОС НА ГЕНЕРАЦИЮ ПОЛУЧЕН")
-    logger.info(f"📦 Параметры: model={model_name}, class={equipment_class}, file={file.filename if file else None}")
     if not api_key.strip():
         raise HTTPException(status_code=400, detail="API ключ обязателен")
 
@@ -63,14 +57,13 @@ async def generate_tech_card(
         "Заполняй ВСЕ ячейки осмысленно, не оставляй пустых. "
         "Для пустых данных пиши прочерк '-'. "
         "Убедись, что JSON валидный и не содержит лишних символов.\n\n"
-        
-        # 🔥 ВАЖНО: пример только про СТРУКТУРУ, не про содержание!
+
         "ПРИМЕР ФОРМАТА (НЕ КОПИРУЙ СОДЕРЖАНИЕ!):\n"
         '{"ТЕКСТ_ОТВЕТ": "Краткое описание", "ТАБЛИЦА": [\n'
         '["Элемент","Подэлемент","Наименование операции","Краткое содержание работ","Вид ТОиР","Периодичность","Норма времени, часов","Количество исполнителей","Профессия/Квалификация","Трудоёмкость, человеко/часов","Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ","Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"],\n'
         '["[Элемент из документа]","[Подэлемент из документа]","[Операция]","[Описание]","[ТО-1/ТО-2/СР/КР]","[число + единица из документа]","[число]","[число]","[профессия]","[расчёт]","[ТМЦ из документа]","[число]","[ед.изм.]","[инструмент]","[СИЗ]","[требование безопасности]"]\n'
         ']}\n\n'
-        
+
         "❗ КРИТИЧЕСКИ: Все значения в ТАБЛИЦЕ бери ТОЛЬКО из текста в <TECH_PASSPORT>. "
         "Пример выше — только для понимания структуры JSON. Не копируй 'Система смазки', '2160', '10W-40' и другие значения из примера!\n"
         "Если в документе периодичность указана в месяцах — пиши '12 месяцев', а не '2160 часов'.\n"
@@ -83,45 +76,61 @@ async def generate_tech_card(
         "Если хоть один ответ 'нет' — перепиши строки.\n"
     )
 
-    # 🔥 Читаем файл ПЕРВЫМ делом
     file_text = ""
     if file:
         file_bytes = await file.read()
         filename = file.filename or ""
-        
+
         if filename.lower().endswith(('.md', '.txt')):
             file_text = file_bytes.decode('utf-8', errors='replace')
         else:
             parsed = parse_pdf_bytes(file_bytes)
             file_text = "\n\n---\n\n".join(p.strip() for p in parsed["pages_text"] if p.strip())
-        
-        # Безопасный лимит: 80 000 символов ≈ 20 000 токенов
+
         MAX_CHARS = 80_000
         if len(file_text) > MAX_CHARS:
             half = MAX_CHARS // 2
             file_text = (
-                file_text[:half] + 
-                "\n\n...[файл обрезан для соблюдения лимита контекста, основные данные сохранены]...\n\n" + 
-                file_text[-half:]
+                    file_text[:half] +
+                    "\n\n...[файл обрезан для соблюдения лимита контекста, основные данные сохранены]...\n\n" +
+                    file_text[-half:]
             )
-        
-        logger.info(f"📄 Файл {filename}: {len(file_text)} символов отправлено в промт (~{len(file_text)//4} токенов)")
-        
-        # Проверка ключевых слов для отладки
-        keywords = ["ремонт", "то-", "обслуживание", "смазка", "периодичность"]
-        found = [kw for kw in keywords if kw in file_text.lower()]
-        if not found:
-            logger.warning("⚠️ В извлечённом тексте НЕТ ключевых разделов ТОиР!")
-        else:
-            logger.info(f"✅ Найдены разделы: {', '.join(found)}")
 
-    # 🔥 ЕДИНСТВЕННАЯ сборка промта (без дублирования!)
+    has_toir_section = False
+    if file_text:
+        toir_keywords = ["техническое обслуживание", "ремонт", "периодичность", "осмотр", "ТО-", "МР", "СР", "КР"]
+        has_toir_section = any(kw in file_text.lower() for kw in toir_keywords)
+
+    if file_text.strip():
+        if has_toir_section:
+            source_instruction = (
+                "📁 ФАЙЛ СОДЕРЖИТ РАЗДЕЛ ТОиР: все данные бери строго из <TECH_PASSPORT>. "
+                "Дополняй только поля: Норма времени, Исполнители, Квалификация, ТМЦ, Инструмент, СИЗ — "
+                "если их нет в файле, используй ГОСТ/ЕНиР с пометкой [ГОСТ]/[ЕНиР]/[тип.].\n"
+            )
+        else:
+            source_instruction = (
+                "📁 ФАЙЛ НЕ СОДЕРЖИТ РАЗДЕЛ ТОиР: бери из <TECH_PASSPORT> только элементы и структуру оборудования. "
+                "Операции, периодичность, нормы заполняй на основе типовых практик для класса '{equipment_class}' с пометкой [тип.].\n"
+            )
+    else:
+        source_instruction = (
+            "📁 ФАЙЛ НЕ ПРИКРЕПЛЁН: формируй технологическую карту на основе типовых практик ТОиР "
+            f"для оборудования класса '{equipment_class or 'промышленное оборудование'}'. "
+            "Все значения помечай [тип.].\n"
+        )
+
+    if "{source_instruction}" in master_prompt:
+        master_prompt = master_prompt.replace("{source_instruction}", source_instruction)
+    else:
+        master_prompt = source_instruction + "\n\n" + master_prompt
+
     full_prompt = (
         f"{master_prompt}\n\n"
         f"{format_instruction}\n\n"
         f"Модель: {model_name}\nКласс: {equipment_class}\nПодкласс: {subclass}\n\n"
     )
-    
+
     if file_text.strip():
         full_prompt += (
             "<TECH_PASSPORT>\n"
@@ -130,15 +139,8 @@ async def generate_tech_card(
             f"{file_text}\n"
             "</TECH_PASSPORT>\n\n"
         )
-    
+
     full_prompt += "Сформируй технологическую карту в указанном JSON-формате."
-    full_prompt += (
-    "\n\n[ПРОВЕРКА] Перед генерацией таблицы ответь кратко:\n"
-    "1. Какие операции ТО указаны для 'Станина' в документе?\n"
-    "2. Есть ли в файле нормы времени для этих операций?\n"
-    "3. Какие ТМЦ упоминаются в разделе 'Смазка'?\n"
-    "Затем формируй таблицу."
-)
 
     try:
         response_text = await call_openrouter_async(
@@ -149,28 +151,18 @@ async def generate_tech_card(
             max_tokens=max_tokens,
             response_format="json_object"
         )
-            # 🔥 Отладка: покажите, что вернула модель
-        logger.info(f"🤖 RAW RESPONSE (first 300 chars): {response_text[:300]}")
-        
-        text_desc, rows = parse_tech_card_response(response_text)
-        
-        # 🔥 Отладка: сколько строк распарсилось
-        logger.info(f"📊 Распарсено строк таблицы: {len(rows)}")
-        if rows:
-            logger.info(f"📋 Первая строка: {rows[0]}")
+
     except Exception as e:
-        logger.error(f"Ошибка вызова LLM: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
     text_desc, rows = parse_tech_card_response(response_text)
 
-    # Нормализация строк таблицы
     expected_keys = [
-        "Элемент","Подэлемент","Наименование операции","Краткое содержание работ",
-        "Вид ТОиР","Периодичность","Норма времени, часов","Количество исполнителей",
-        "Профессия/Квалификация","Трудоёмкость, человеко/часов",
-        "Наименование ТМЦ","Количество ТМЦ","Единицы измерения ТМЦ",
-        "Наименование инструмента","Средства индивидуальной защиты","Требования по безопасности"
+        "Элемент", "Подэлемент", "Наименование операции", "Краткое содержание работ",
+        "Вид ТОиР", "Периодичность", "Норма времени, часов", "Количество исполнителей",
+        "Профессия/Квалификация", "Трудоёмкость, человеко/часов",
+        "Наименование ТМЦ", "Количество ТМЦ", "Единицы измерения ТМЦ",
+        "Наименование инструмента", "Средства индивидуальной защиты", "Требования по безопасности"
     ]
     normalized_rows = []
     for row in rows:
@@ -183,10 +175,6 @@ async def generate_tech_card(
             clean_row[k] = str(val).strip()
         normalized_rows.append(clean_row)
     rows = normalized_rows
-
-    # Убираем проблемную конверсию latin1→utf8 (может ломать кириллицу)
-    # Если модель возвращает корректный UTF-8, этот блок не нужен
-    # Если есть проблемы с кодировкой — лучше фиксить на уровне парсинга ответа
 
     xlsx_data = None
     if rows:
@@ -233,4 +221,3 @@ async def chat_endpoint(message: str = Form(...), history: Optional[str] = Form(
         return {"reply": response}
     except Exception as e:
         return {"reply": f"Ошибка: {str(e)}"}
-    

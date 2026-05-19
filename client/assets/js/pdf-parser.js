@@ -21,29 +21,24 @@
             showStatus('Нет данных для создания техкарты', 'error');
             return;
         }
-        // Формируем Markdown-документ
         let markdown = '';
         const fileName = selectedFile?.name || 'document.pdf';
         markdown += `# Технический паспорт: ${fileName}\n\n`;
-        
-        // Текст документа
+
         markdown += '## Извлечённый текст\n\n';
         lastResult.pages_text.forEach((txt, idx) => {
             if (txt.trim()) {
                 markdown += `### Страница ${idx+1}\n${txt}\n\n`;
             }
         });
-        
-        // Таблицы
+
         if (lastResult.tables && lastResult.tables.length) {
             markdown += '## Таблицы\n\n';
             lastResult.tables.forEach((table, tIdx) => {
                 if (table.length === 0) return;
                 markdown += `### Таблица ${tIdx+1}\n\n`;
-                // Заголовки
                 markdown += '| ' + table[0].map(h => h || ' ').join(' | ') + ' |\n';
                 markdown += '|' + table[0].map(() => '---').join('|') + '|\n';
-                // Данные
                 table.slice(1).forEach(row => {
                     markdown += '| ' + row.map(c => c || ' ').join(' | ') + ' |\n';
                 });
@@ -51,11 +46,9 @@
             });
         }
 
-        // Сохраняем в sessionStorage
         sessionStorage.setItem('parsedTechContext', markdown);
         sessionStorage.setItem('parsedTechFileName', fileName);
         sessionStorage.setItem('parsedTechFileSize', selectedFile?.size || 0);
-        // Пытаемся угадать модель из имени файла
         const modelFromName = fileName.replace(/\.(pdf|docx)$/i, '').replace(/[_-]/g, ' ').trim();
         sessionStorage.setItem('parsedTechModel', modelFromName);
         sessionStorage.setItem('parsedTechClass', '');
@@ -130,7 +123,6 @@
 
     function displayResult(data) {
         const section = document.getElementById('resultsSection');
-        // section.classList.add('visible');
         const container = document.getElementById('parsedContent');
         container.innerHTML = '';
 

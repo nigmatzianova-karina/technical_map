@@ -84,7 +84,7 @@ def normalize_model_name(text) -> str:
     for char in s:
         normalized_chars.append(LATIN_TO_CYRILLIC.get(char, char))
     s = ''.join(normalized_chars)
-    
+
     s = re.sub(r'(\d)\s*,\s*(\d)', r'\1.\2', s)
     s = re.sub(r'[xхХ]', '-', s)
 
@@ -92,7 +92,7 @@ def normalize_model_name(text) -> str:
     suffix_no = f"({match_no.group(1)})" if match_no else ""
     if match_no:
         s = s[:match_no.start()] + s[match_no.end():]
-    
+
     s = re.sub(r'(\d)\s+([\s_/\-]*)\s*(\d)', r'\1-\3', s)
     s = re.sub(r'(\d)[_/](\d)', r'\1-\2', s)
     s = re.sub(r'\s+', '', s)
@@ -102,7 +102,7 @@ def normalize_model_name(text) -> str:
     s = re.sub(r'\.+', '.', s)
     s = re.sub(r'-+', '-', s)
     s = s.strip('-')
-    
+
     return s + suffix_no if suffix_no else s
 
 

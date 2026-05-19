@@ -4,13 +4,11 @@ let currentEditRow = -1;
 let currentEditCol = -1;
 const HISTORY_KEY = 'hierarchy_history';
 
-// Используем глобальные escapeHtml, showStatus из utils.js
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
     document.getElementById('fileName').textContent = e.target.files[0]?.name || '';
 });
 
-// -------- История --------
 function getHistory() {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
 }
@@ -61,7 +59,6 @@ document.getElementById('clearHistoryBtn').addEventListener('click', function() 
     }
 });
 
-// -------- Загрузка и нормализация --------
 async function uploadFile() {
     const fileInput = document.getElementById('fileInput');
     if (!fileInput.files.length) return showStatus('Выберите файл.', 'error');
@@ -81,7 +78,6 @@ async function uploadFile() {
                 renderTable();
                 document.getElementById('edit-block').style.display = 'block';
                 document.getElementById('normalize-block').style.display = 'block';
-                // Добавляем в историю
                 addToHistory(fileInput.files[0].name, globalData, globalHeaders);
             } else {
                 showStatus('Файл пуст.', 'error');
@@ -108,7 +104,6 @@ async function runNormalization() {
             globalHeaders = Object.keys(globalData[0]);
             renderTable(); 
             showStatus('Нормализация завершена', 'success');
-            // Обновляем историю после нормализации
             const lastFile = document.getElementById('fileName').textContent || 'нормализованные_данные';
             addToHistory(lastFile + ' (нормализ.)', globalData, globalHeaders);
         } else { showStatus(`Ошибка: ${result.message}`, 'error'); }
@@ -171,7 +166,6 @@ function createTechCard() {
     document.getElementById('contextMenu').style.display = 'none';
     if (currentEditRow < 0 || currentEditCol < 0) return;
     const row = globalData[currentEditRow];
-    // ищем колонку, содержащую "модель"
     let model = '';
     for (let key of globalHeaders) {
         if (key.toLowerCase().includes('модель')) {
@@ -180,14 +174,11 @@ function createTechCard() {
         }
     }
     if (!model) {
-        // fallback на значение текущей ячейки
         model = row[globalHeaders[currentEditCol]] || '';
     }
-    // Переход в том же окне
     window.location.href = `/technical_map/?model=${encodeURIComponent(model)}`;
 }
 
-// -------- Скачивание --------
 function saveAndDownload() {
     if (!globalData.length) return showStatus('Нет данных', 'error');
     const headerRow = globalHeaders.join(',') + '\n';
@@ -212,5 +203,4 @@ function saveAndDownloadJSON() {
     showStatus('JSON скачан', 'success');
 }
 
-// Инициализация истории при загрузке
 loadHistoryDropdown();

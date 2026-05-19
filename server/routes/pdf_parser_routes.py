@@ -14,6 +14,7 @@ router = APIRouter(prefix="/pdf_parser", tags=["pdf_parser"])
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
 
+
 @router.post("/api/parse")
 async def parse_document(file: UploadFile = File(...)):
     suffix = Path(file.filename).suffix.lower()
@@ -51,4 +52,3 @@ async def parse_document(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка парсинга: {str(e)}")
-    

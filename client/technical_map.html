@@ -16,7 +16,6 @@
     </div>
 
     <div class="content">
-        <!-- ЛЕВАЯ КОЛОНКА -->
         <div class="main-content">
             <div class="form-section">
                 <h2>Параметры оборудования</h2>
@@ -52,12 +51,13 @@
                                 <span id="fileInfoSize"></span> · <span id="fileInfoType"></span>
                             </div>
                         </div>
-                        <button class="btn btn-outline" id="clearFileBtn" style="padding: 4px 8px; font-size: 12px;" title="Удалить файл">✕</button>
+                        <button class="btn btn-outline" id="clearFileBtn" style="padding: 4px 8px; font-size: 12px;"
+                                title="Удалить файл">✕
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Таблица результатов -->
             <div class="results-section" id="resultsSection">
                 <h2>📊 Технологическая карта</h2>
 
@@ -65,7 +65,8 @@
                     <select id="historySelect" style="flex:1; min-width:200px;">
                         <option value="">— Выбрать предыдущую генерацию —</option>
                     </select>
-                    <button class="btn btn-outline" id="clearHistoryBtn" title="Очистить всю историю">🗑 Очистить</button>
+                    <button class="btn btn-outline" id="clearHistoryBtn" title="Очистить всю историю">🗑 Очистить
+                    </button>
                 </div>
 
                 <button class="download-btn" id="downloadBtn" style="display:none;">📥 Скачать XLSX</button>
@@ -78,7 +79,6 @@
             </div>
         </div>
 
-        <!-- ПРАВАЯ КОЛОНКА (ЧАТ) -->
         <div class="chat-column">
             <div class="chat-section">
                 <div class="chat-messages" id="chatMessages">
@@ -96,7 +96,6 @@
     </div>
 </div>
 
-<!-- Модальное окно настроек -->
 <div class="modal-overlay" id="settingsModal">
     <div class="modal">
         <div class="modal-header">
@@ -158,7 +157,6 @@
     });
 </script>
 <script>
-    // Автозаполнение модели из URL при переходе из иерархии
     (function() {
         const params = new URLSearchParams(window.location.search);
         const model = params.get('model');

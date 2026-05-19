@@ -71,4 +71,3 @@ class ExtractionResult(BaseModel):
     entities: List[ExtractedEntity] = Field(default_factory=list)
     tables: List[ExtractedTable] = Field(default_factory=list)
     page_summaries: Dict[int, str] = Field(default_factory=dict)
-    

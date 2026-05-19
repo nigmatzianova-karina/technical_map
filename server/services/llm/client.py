@@ -4,13 +4,9 @@
 
 import json
 import re
-import logging
 from typing import Dict, Any, Tuple, Optional
 import asyncio
 import httpx
-
-
-logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
@@ -21,10 +17,10 @@ def validate_api_key_sync(api_key: str) -> Tuple[bool, str]:
     Возвращает (is_valid, message).
     """
     import requests
-    
+
     if not api_key or not api_key.strip():
         return False, "API ключ пустой"
-    
+
     try:
         response = requests.get(
             f"{OPENROUTER_BASE}/auth/key",
@@ -62,18 +58,17 @@ def parse_llm_json_response(content: str) -> Optional[Dict[str, Any]]:
                 return json.loads(content.strip())
             except json.JSONDecodeError:
                 pass
-        logger.error(f"Невалидный JSON от LLM. Начало ответа:\n{content[:300]}")
         return None
-    
+
 
 async def call_openrouter_async(
-    prompt: str,
-    model: str,
-    api_key: str,
-    temperature: float = 0.3,
-    max_tokens: int = 4000,
-    response_format: Optional[str] = None,
-    max_retries: int = 3
+        prompt: str,
+        model: str,
+        api_key: str,
+        temperature: float = 0.3,
+        max_tokens: int = 4000,
+        response_format: Optional[str] = None,
+        max_retries: int = 3
 ) -> str:
     """Асинхронный вызов OpenRouter API с повторными попытками."""
     headers = {
@@ -102,7 +97,6 @@ async def call_openrouter_async(
                 )
                 if response.status_code == 429:
                     wait_time = (2 ** attempt) + 1
-                    logger.warning(f"429 Too Many Requests, попытка {attempt+1}/{max_retries}, ждём {wait_time} сек")
                     await asyncio.sleep(wait_time)
                     continue
                 response.raise_for_status()
@@ -113,7 +107,6 @@ async def call_openrouter_async(
                 return content
         except (httpx.TimeoutException, httpx.HTTPStatusError, ValueError) as e:
             last_error = str(e)
-            logger.warning(f"Ошибка запроса: {e}, попытка {attempt+1}/{max_retries}")
             if attempt < max_retries - 1:
                 await asyncio.sleep(2 ** attempt)
     raise Exception(f"Не удалось получить ответ после {max_retries} попыток. Последняя ошибка: {last_error}")
